@@ -23,7 +23,7 @@ export const logout=async()=>{
 
 export const me=async()=>{
     try{
-        const {data} = await api.get("/api/auth/get")
+        const {data} = await api.get("/api/auth/me")
         return data
     }
     catch(error){
