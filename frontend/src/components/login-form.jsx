@@ -18,12 +18,16 @@ import {
 } from "@/components/ui/field";
 import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "@/firebase";
+import { useDispatch } from "react-redux";
+import { setUserData } from "@/redux/userSlice.js";
 export function LoginForm({ className, ...props }) {
+  const dispatch=useDispatch()
   const handleGoogleLogin = async () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const token = await result.user.getIdToken();
       const data = await login(token);
+      dispatch(setUserData(data))
     } catch (error) {
       console.log(error);
     }
