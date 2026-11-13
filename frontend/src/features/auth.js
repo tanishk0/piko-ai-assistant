@@ -28,5 +28,6 @@ export const me=async()=>{
     }
     catch(error){
         console.log(error)
+        return null
     }
 }
