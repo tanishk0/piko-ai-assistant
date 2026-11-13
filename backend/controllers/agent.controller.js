@@ -1,0 +1,33 @@
+import Agent from "../models/agent.model"
+
+export const createAgent = async (req, res)=> {
+    try {
+        const {name, knowledgeBase, instructions, tools} = req.body
+        if(!name || !knowledgeBase || !instructions || !tools){
+            return res.status(400).json({message: "Send all details"})
+        }
+        const userId = req.user._id;
+        const agent=await Agent.create({
+            name, knowledgeBase, instructions, tools, userId
+        })
+
+        return res.status(201).json(agent)
+    } catch (error) {
+        return res.status(500).json({message: "create agent error", error})
+    }
+}
+
+export const getAllAgents = async (req, res)=> {
+    try {
+        const userId = req.user._id;
+
+        const agent=await Agent.find({
+            userId
+        })
+
+        return res.status(200).json(agent)
+    } catch (error) {
+        return res.status(500).json({message: "get all agents error", error})
+    }
+}
+
