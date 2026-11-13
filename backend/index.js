@@ -5,6 +5,7 @@ dotenv.config()
 import cors from "cors"
 import cookieParser from "cookie-parser"
 import authRouter from "./routes/auth.routes.js"
+import agentRouter from "./routes/agent.routes.js"
 
 const app = express()
 
@@ -19,6 +20,7 @@ app.use(cors({
 app.use(cookieParser())
 
 app.use("/api/auth", authRouter)
+app.use("/api/agent", agentRouter)
 
 app.listen(port, ()=> {
     connectDb(),
