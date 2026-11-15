@@ -3,12 +3,12 @@ import Agent from "../models/agent.model.js"
 export const createAgent = async (req, res)=> {
     try {
         const {name, knowledgeBase, instructions, tools} = req.body
-        if(!name || !knowledgeBase || !instructions || !tools){
-            return res.status(400).json({message: "Send all details"})
+        if(!name || !instructions){
+            return res.status(400).json({message: "Name and instructions are required"})
         }
         const userId = req.user._id;
         const agent=await Agent.create({
-            name, knowledgeBase, instructions, tools, userId
+            name, knowledgeBase, instructions, tools: tools || [], userId
         })
 
         return res.status(201).json(agent)
@@ -33,11 +33,8 @@ export const getAllAgents = async (req, res)=> {
 
 export const getAgentById = async (req, res)=> {
     try {
-        const userId = req.user._id;
-        const agentId=req.params.id
-        const agent=await Agent.findById({
-            agentId
-        })
+        const agentId = req.params.id;
+        const agent = await Agent.findById(agentId);
 
         return res.status(200).json(agent)
     } catch (error) {
@@ -47,11 +44,8 @@ export const getAgentById = async (req, res)=> {
 
 export const deleteAgent = async (req, res)=> {
     try {
-        const userId = req.user._id;
-        const agentId=req.params.id
-        const agent=await Agent.findByIdAndDelete({
-            agentId
-        })
+        const agentId = req.params.id;
+        const agent = await Agent.findByIdAndDelete(agentId);
 
         return res.status(200).json(agent)
     } catch (error) {
