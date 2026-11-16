@@ -26,6 +26,7 @@ import { setUserData } from "@/redux/userSlice";
 
 const Home = () => {
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [messages, setMessages] = useState([]);
   const { userData } = useSelector((state) => state.user);
   const dispatch = useDispatch();
   const handleLogout = async () => {
@@ -153,6 +154,28 @@ const Home = () => {
             </DropdownMenu>
           </div>
         </header>
+
+        <main className="flex min-h-0 flex-1 flex-col">
+          <section className="flex min-h-0 flex-1 flex-col">
+            <div className={`min-h-0 flex-1 overflow-y-auto`}>
+              <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-5 px-4 py-8 sm;px-6">
+                {messages.length === 0 && (
+                  <div className="flex flex-1 flex-col items-center justify-center pb-8 text-center">
+                    <div className="mb-7 grid size-14 place-items-center rounded-2xl bg-white text-zinc-900">
+                      <WorkflowIcon size={26}/>
+                    </div>
+                    <p className="text-base text-violer-300/80">Hi, {userData?.name || "User"}</p>
+                    <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">How can I help you?</h1>
+                    <p className="mt-4 max-w-sm text-xs leading-5 text-zinc-500">
+                      Ask questions, automate tasks or upload an image to
+                      prepare an Instagram post.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        </main>
       </div>
     </div>
   );
