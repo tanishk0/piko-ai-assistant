@@ -3,18 +3,18 @@ import {HumanMessage} from '@langchain/core/messages';
 export const chat = async (req, res) => {
   try {
     const {message} = req.body;
-    if (!threadId || !message) {
+    if (!message) {
       return res.status (400).json ({
-        message: 'threadId and message required',
+        message: 'message required',
       });
     }
-    const threadId = req.user._id;
+    const threadId = req.user._id.toString()
     const data = await chatGraph.invoke (
       {
         messages: [new HumanMessage (message)],
       },
       {
-        configurable: {threadId},
+        configurable: {thread_id: threadId},
       }
     );
 
