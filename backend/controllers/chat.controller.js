@@ -8,7 +8,7 @@ export const chat = async (req, res) => {
         message: 'message required',
       });
     }
-    const threadId = req.user._id.toString()
+    const threadId = req.user._id.toString ();
     const data = await chatGraph.invoke (
       {
         messages: [new HumanMessage (message)],
@@ -21,12 +21,11 @@ export const chat = async (req, res) => {
     const lastMessage = data.messages[data.messages.length - 1].content;
 
     return res.status (200).json ({
-      lastMessage,
+      aiResponse: lastMessage,
     });
   } catch (error) {
-
     return res.status (500).json ({
-      message: `Chat controller error ${error}`
+      message: `Chat controller error ${error}`,
     });
   }
 };
