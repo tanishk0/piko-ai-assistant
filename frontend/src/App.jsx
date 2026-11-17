@@ -4,13 +4,34 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { me } from "./features/auth.js";
 import { useDispatch, useSelector } from "react-redux";
 import { setUserData } from "./redux/userSlice.js";
+import {
+  setAgents,
+  setAgentsLoading,
+  setSelectedAgent,
+} from "./redux/agentSlice.js";
 import Home from "./pages/Home";
 import Agents from "./pages/Agents";
 import Integration from "./pages/Integration";
 import CreateAgent from "./pages/CreateAgent";
+import { getAllAgents } from "./features/agent.js";
 
 function App() {
   const dispatch = useDispatch();
+  const fetchAgents = async () => {
+    dispatch(setAgentsLoading(true));
+    try {
+      const data = await getAllAgents();
+      dispatch(setAgents(data));
+      dispatch(setAgentsLoading(false));
+    } catch (error) {
+      console.log(error);
+      dispatch(setAgentsLoading(false));
+    }
+  };
+
+  useEffect(() => {
+    fetchAgents();
+  }, []);
 
   const { userData, loading } = useSelector((state) => state.user);
 
