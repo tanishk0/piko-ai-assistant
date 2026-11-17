@@ -1,4 +1,5 @@
 import {
+  ArrowUp,
   Bot,
   BotIcon,
   Check,
@@ -30,27 +31,45 @@ import { logout } from "@/features/auth";
 import { setUserData } from "@/redux/userSlice";
 import { Textarea } from "@/components/ui/textarea";
 import { setSelectedAgent } from "@/redux/agentSlice";
+import { chat } from "@/features/chat.js";
 const darkPanel =
   "border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.35), inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl";
 const Home = () => {
   const [logoutLoading, setLogoutLoading] = useState(false);
-  const [messages, setMessages] = useState([
-    {
-      role: "user",
-      content: "hello",
-    },
-    {
-      role: "assistant",
-      content: "hi",
-    },
-  ]);
+  const [messages, setMessages] = useState([]);
   const { userData } = useSelector((state) => state.user);
   const { agents, selectedAgent } = useSelector((state) => state.agent);
   const dispatch = useDispatch();
+  const [message, setMessage] = useState("");
   const handleLogout = async () => {
     (setLogoutLoading(true), await logout());
     dispatch(setUserData(null));
     setLogoutLoading(false);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        content: message,
+      },
+    ]);
+    if (selectedAgent === "") {
+      const res = await chat(message);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content:
+            res?.aiResponse ||
+            res?.response?.data?.message ||
+            "something went wrong",
+        },
+      ]);
+      return;
+    }
   };
   const menuContent =
     "rounded-2xl border border-white/10 bg-[#1d2026]/95 p-1.5 text-zinc-100 shadow-2xl shadow-black/50 backdrop-blur-xl";
@@ -218,9 +237,12 @@ const Home = () => {
             </div>
             <div className="z-20 w-full shrink-0 px-3 pb-3 pt-2 sm:px-5 sm:pb-4">
               <form
+                onSubmit={handleSubmit}
                 className={`mx-auto w-full max-w-2xl rounded-2xl p-3 transition-colors focus-within:border-white/25 ${darkPanel}`}
               >
                 <Textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
                   placeholder={`Ask me anything...`}
                   className={`min-h-20 resize-none border-0 !bg-transparent px-2 py-1.5 text-sm text-white shadow-none placeholder:text-zinc-500 focus-visible:ring-0`}
                 />
@@ -281,8 +303,28 @@ const Home = () => {
                           </DropdownMenuItem>
                         ))}
                         <DropdownMenuSeparator></DropdownMenuSeparator>
+                        <DropdownMenuItem asChild className={menuContent}>
+                          <Link
+                            to={"/agents/new"}
+                            className="flex items-center gap-2"
+                          >
+                            <PlusIcon size={15} /> Create new agent
+                          </Link>
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={(e) => handleSubmit(e)}
+                      type="submit"
+                      size="icon"
+                      aria-label="Send message"
+                      className={`bg-white text-black size-8 shrink-0 hover:bg-white/90 `}
+                    >
+                      <ArrowUp size={16} />
+                    </Button>
                   </div>
                 </div>
               </form>
