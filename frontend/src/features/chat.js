@@ -6,5 +6,6 @@ export const chat = async message => {
     return data;
   } catch (error) {
     console.log (error);
+    return error;
   }
 };
