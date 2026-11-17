@@ -1,34 +1,37 @@
-import mongoose from "mongoose"
+import mongoose from 'mongoose';
 
-const agentSchema=new mongoose.Schema({
+const agentSchema = new mongoose.Schema (
+  {
     userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true, 
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
     },
     name: {
-        type: String,
-        required: true,
+      type: String,
+      required: true,
+      unique: true,
     },
     knowledgeBase: {
-        type: String,
-
+      type: String,
     },
     instructions: {
-        type: String,
-        required: true
+      type: String,
+      required: true,
     },
     tools: [
-        {
-            type: String,
-            trim: true,
-        }
+      {
+        type: String,
+        trim: true,
+      },
     ],
     isActive: {
-        type: Boolean,
-        default: "true"
-    }
-},{timestamps: true})
+      type: Boolean,
+      default: 'true',
+    },
+  },
+  {timestamps: true}
+);
 
-const Agent=mongoose.model("Agent", agentSchema)
-export default Agent
+const Agent = mongoose.model ('Agent', agentSchema);
+export default Agent;
