@@ -8,6 +8,12 @@ export const createAgent = async (req, res) => {
         .status (400)
         .json ({message: 'Name and instructions are required'});
     }
+    const existingAgent = await Agent.findOne ({name});
+    if (existingAgent) {
+      return res.status (501).json ({
+        message: 'Agent names should be unique',
+      });
+    }
     const userId = req.user._id;
     const agent = await Agent.create ({
       name,
