@@ -14,6 +14,8 @@ import {
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
+import { useDispatch, useSelector } from "react-redux";
+import { setAgents, setAgentsLoading, setDelete, setSelectedAgent } from "@/redux/agentSlice.js";
 const darkPanel =
   "border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.35), inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl";
 
@@ -21,23 +23,11 @@ const whiteBtn =
   "rounded-xl border-0 bg-white text-zinc-900 hover:bg-zinc-200 hover:text-zinc-900";
 
 const Agents = () => {
-  const [agents, setAgents] = useState([]);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(false);
-  const fetchAgents = async () => {
-    setLoading(true);
-    try {
-      const data = await getAllAgents();
-      setAgents(data);
-      setLoading(false);
-    } catch (error) {
-      console.log(error);
-      setLoading(false);
-    }
-  };
-  useEffect(() => {
-    fetchAgents();
-  }, []);
+  const dispatch = useDispatch();
+  const { agents, agentsLoading: loading } = useSelector(
+    (state) => state.agent,
+  );
   const filteredAgents = agents.filter((agent) => {
     const query = search.toLowerCase();
 
@@ -47,12 +37,25 @@ const Agents = () => {
       agent?.knowledgeBase?.toLowerCase()?.includes(query)
     );
   });
+  const fetchAgents = async () => {
+    dispatch(setAgentsLoading(true));
+    try {
+      const data = await getAllAgents();
+      dispatch(setAgents(data));
+      dispatch(setAgentsLoading(false));
+    } catch (error) {
+      console.log(error);
+      dispatch(setAgentsLoading(false));
+    }
+  };
+
+  useEffect(() => {
+    fetchAgents();
+  }, []);
   const handleDelete = async (id) => {
     try {
       await deleteAgent(id);
-      setAgents((prev) => {
-        return prev.filter((a) => a?._id !== id);
-      });
+      dispatch(setDelete(id));
     } catch (error) {
       console.log(error);
     }
@@ -154,6 +157,7 @@ const Agents = () => {
                       <Button
                         asChild
                         variant="ghost"
+                        onClick={()=>dispatch(setSelectedAgent(agent.name))}
                         size="sm"
                         className={
                           "h-8 gap-1.5 rounded-lg text-zinc-300 hover:bg-white/10 hover:text-white"
