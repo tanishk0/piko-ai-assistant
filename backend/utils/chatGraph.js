@@ -9,12 +9,12 @@ import {
 } from '@langchain/langgraph';
 import {MongoDBSaver} from '@langchain/langgraph-checkpoint-mongodb';
 import {MongoClient} from 'mongodb';
-import dotenv from "dotenv"
-dotenv.config()
+import dotenv from 'dotenv';
+dotenv.config ();
 const llm = new ChatGroq ({
   model: 'openai/gpt-oss-120b',
   temperature: 0,
-  maxTokens: undefined,
+  maxTokens: 200,
   maxRetries: 2,
 });
 const client = new MongoClient (process.env.MONGODB_URI);
