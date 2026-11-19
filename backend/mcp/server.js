@@ -1,50 +1,64 @@
-import {McpServer} from '@modelcontextprotocol/server';
+import { McpServer } from '@modelcontextprotocol/server';
 import {
   serveStdio,
   StdioServerTransport,
 } from '@modelcontextprotocol/server/stdio';
-import {z} from 'zod';
+import { z } from 'zod';
 import dotenv from 'dotenv';
 import { fileURLToPath } from "node:url"
 import path from "node:path"
-const _fileName=fileURLToPath(import.meta.url);
-const dirName=path.dirname(_fileName)
-dotenv.config ({
+const _fileName = fileURLToPath(import.meta.url);
+const dirName = path.dirname(_fileName)
+dotenv.config({
   path: path.resolve(dirName, "../.env")
 });
-import {TavilySearch} from '@langchain/tavily';
-const server = new McpServer ({
+import { TavilySearch } from '@langchain/tavily';
+const server = new McpServer({
   name: 'agent-builder',
   version: '1.0.0',
 });
 
-const tavilySearch = new TavilySearch ({
+const tavilySearch = new TavilySearch({
   tavilyApiKey: process.env.TAVILY_API_KEY,
-  maxResults: 2,
+  maxResults: 4,
   topic: 'general',
 });
 
-server.registerTool (
+server.registerTool(
   'web_search_tool',
   {
     description: 'Search the web for current information',
-    inputSchema: z.object ({
-      query: z.string (),
+    inputSchema: z.object({
+      query: z.string(),
     }),
   },
-  async ({query}) => {
+  async ({ query }) => {
     try {
-      const result = await tavilySearch.invoke ({query});
+      const result = await tavilySearch.invoke({ query });
+
+      // If no results or an error occurred
+      if (!result?.results || result.results.length === 0) {
+        return {
+          content: [{ type: 'text', text: 'No relevant search results found.' }],
+        };
+      }
+      // Take only the top 2 results and keep the text concise
+      const cleanOutput = result.results
+        .slice(0, 2)
+        .map((item, idx) => (
+          `[Source ${idx + 1}]: ${item.title}\nURL: ${item.url}\nContent: ${item.content.slice(0, 350)}`
+        ))
+        .join('\n\n');
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(result),
+            text: cleanOutput, // ✅ Clean plain text (~250-300 tokens total)
           },
         ],
       };
     } catch (error) {
-      console.log (error);
+      console.log(error);
       return {
         content: [
           {
@@ -58,12 +72,12 @@ server.registerTool (
 );
 
 const main = async () => {
-  const transport = new StdioServerTransport ();
-  await server.connect (transport);
-  console.log ('mcp is connected');
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.log('mcp is connected');
 };
 
-main ().catch (error => {
-  console.log ('mcp server error', error);
-  process.exit (1);
+main().catch(error => {
+  console.log('mcp server error', error);
+  process.exit(1);
 });
