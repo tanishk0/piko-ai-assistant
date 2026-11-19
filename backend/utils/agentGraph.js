@@ -1,4 +1,4 @@
-import {ChatGroq} from '@langchain/groq';
+import { ChatGroq } from '@langchain/groq';
 import {
   StateSchema,
   MessagesValue,
@@ -7,43 +7,43 @@ import {
   END,
   MessagesAnnotation,
 } from '@langchain/langgraph';
-import {ToolNode} from '@langchain/langgraph/prebuilt';
-import {MongoDBSaver} from '@langchain/langgraph-checkpoint-mongodb';
-import {MongoClient} from 'mongodb';
+import { ToolNode } from '@langchain/langgraph/prebuilt';
+import { MongoDBSaver } from '@langchain/langgraph-checkpoint-mongodb';
+import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
-import {SystemMessage} from '@langchain/core/messages';
-import {getMcpTools} from '../mcp/lg-mcp.js';
-import {set} from 'zod';
-dotenv.config ();
-const llm = new ChatGroq ({
+import { SystemMessage } from '@langchain/core/messages';
+import { getMcpTools } from '../mcp/lg-mcp.js';
+import { set } from 'zod';
+dotenv.config();
+const llm = new ChatGroq({
   model: 'openai/gpt-oss-120b',
   temperature: 0,
   maxTokens: 200,
   maxRetries: 2,
 });
-const client = new MongoClient (process.env.MONGODB_URI);
-const checkpointer = new MongoDBSaver ({client, dbName: 'langgraph'});
+const client = new MongoClient(process.env.MONGODB_URI);
+const checkpointer = new MongoDBSaver({ client, dbName: 'langgraph' });
 
 export const createAgentGraph = async (agent, userId) => {
-  const mcpTools = await getMcpTools ();
-  console.log (mcpTools.map (tool => tool.name));
-  const llmWithTools = llm.bindTools (mcpTools, {
+  const mcpTools = await getMcpTools();
+  console.log(mcpTools.map(tool => tool.name));
+  const llmWithTools = llm.bindTools(mcpTools, {
     tool_choice: 'auto',
   });
 
-  const currentDateTime = new Intl.DateTimeFormat ('en-IN', {
+  const currentDateTime = new Intl.DateTimeFormat('en-IN', {
     timeZone: 'Asia/Kolkata',
     dateStyle: 'full',
     timeStyle: 'long',
-  }).format (new Date ());
+  }).format(new Date());
 
   const systemPrompt = `${agent.instructions} 
   
-  You are Patrick, a personal AI agent operating within a multi-agent workspace platform.
+  You are ${agent.name}, a personal AI agent operating within a multi-agent workspace platform.
   
   ## 1. Identity
   
-  Your name is Patrick.
+  Your name is ${agent.name}
   
   You are intelligent, resourceful, analytical, composed, and proactive. You communicate naturally, think critically, and approach problems with a strong sense of ownership.
   
@@ -178,15 +178,15 @@ export const createAgentGraph = async (agent, userId) => {
   Your objective is simple:
   **Be the agent users can delegate real work to, trust to execute it, and rely on to report back accurately.**`;
 
-  const approvalTools = new Set ([
+  const approvalTools = new Set([
     'send_email',
     'create_calender_event',
     'publish_instagram_post',
   ]);
   const chatNode = async state => {
     const recentMessages = state.messages.slice(-4)
-    const response = await llmWithTools.invoke ([
-      new SystemMessage (systemPrompt),
+    const response = await llmWithTools.invoke([
+      new SystemMessage(systemPrompt),
       ...recentMessages,
     ]);
 
@@ -195,34 +195,33 @@ export const createAgentGraph = async (agent, userId) => {
     };
   };
 
-  const toolNode = new ToolNode (mcpTools);
+  const toolNode = new ToolNode(mcpTools);
 
-  const actionApprovalNode = () => {};
+  const actionApprovalNode = () => { };
 
   const routeAfterChat = state => {
     const messages = state.messages || [];
-    console.log ('state msgs: ', messages);
+    console.log('state msgs: ', messages);
     const lastMessage = messages[messages.length - 1];
-    if (lastMessage.tool_calls.length == 0) {
+    if (!lastMessage.tool_calls || lastMessage.tool_calls.length === 0) {
       return '__end__';
     }
-    const requiresApproval = lastMessage?.tool_calls?.some((call)=> (
+    const requiresApproval = lastMessage?.tool_calls?.some((call) => (
       approvalTools.has(call.name)
     ))
-    return requiresApproval? "actionApprovalNode" : "tools"
+    return requiresApproval ? "actionApprovalNode" : "tools"
   };
 
-  const routeAfterApproval = () => {};
-  const workflow = new StateGraph (MessagesAnnotation)
-    .addNode ('chatNode', chatNode)
-    .addNode ('tools', toolNode)
-    .addNode ('actionApprovalNode', actionApprovalNode)
-    .addEdge ('__start__', 'chatNode')
-    .addConditionalEdges ('chatNode', routeAfterChat)
-    .addEdge ('tools', 'chatNode')
-    .addConditionalEdges ('actionApprovalNode', routeAfterApproval)
-    .addEdge ('chatNode', '__end__');
+  const routeAfterApproval = () => { };
+  const workflow = new StateGraph(MessagesAnnotation)
+    .addNode('chatNode', chatNode)
+    .addNode('tools', toolNode)
+    .addNode('actionApprovalNode', actionApprovalNode)
+    .addEdge('__start__', 'chatNode')
+    .addConditionalEdges('chatNode', routeAfterChat)
+    .addEdge('tools', 'chatNode')
+    .addConditionalEdges('actionApprovalNode', routeAfterApproval)
 
-  const chatAgentGraph = workflow.compile ({checkpointer});
+  const chatAgentGraph = workflow.compile({ checkpointer });
   return chatAgentGraph;
 };
