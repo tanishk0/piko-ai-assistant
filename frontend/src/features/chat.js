@@ -12,7 +12,7 @@ export const chat = async message => {
 
 export const agentChat = async (message, agent) => {
   try {
-    const {data} = await api.post ('/api/chat', {message, agent});
+    const {data} = await api.post ('/api/chat/agent', {message, agent});
     return data;
   } catch (error) {
     console.log (error);
