@@ -31,7 +31,7 @@ import { logout } from "@/features/auth";
 import { setUserData } from "@/redux/userSlice";
 import { Textarea } from "@/components/ui/textarea";
 import { setSelectedAgent } from "@/redux/agentSlice";
-import { chat } from "@/features/chat.js";
+import { agentChat, chat } from "@/features/chat.js";
 const darkPanel =
   "border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.35), inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl";
 const Home = () => {
@@ -58,6 +58,19 @@ const Home = () => {
     ]);
     if (selectedAgent === "") {
       const res = await chat(message);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content:
+            res?.aiResponse ||
+            res?.response?.data?.message ||
+            "something went wrong",
+        },
+      ]);
+      return;
+    } else {
+      const res = await agentChat(message, selectedAgent);
       setMessages((prev) => [
         ...prev,
         {
