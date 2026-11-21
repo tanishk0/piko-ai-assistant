@@ -19,3 +19,21 @@ export const encrypt = text => {
     encrypted.toString ('hex'),
   ].join (':');
 };
+
+export const decrypt = value => {
+  const {iv, tag, data} = value.split (':');
+  if (!iv || !tag || !data) {
+    throw new Error ('Invalid encrypted value');
+  }
+
+  const decipher = crypto.createDecipheriv (
+    'aes-256-gcm',
+    getKey (),
+    Buffer.from (iv, 'hex')
+  );
+  decipher.setAuthTag(Buffer.from(tag, 'hex'))
+return Buffer.concat([
+    decipher.update(Buffer.from(data, 'hex')),
+    decipher.final()
+]).toString('utf-8')
+};
