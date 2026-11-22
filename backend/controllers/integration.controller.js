@@ -1,4 +1,3 @@
-import {success} from 'zod';
 import {googleOAuthclient, scopes} from '../config/googleOAuth.js';
 import jwt from 'jsonwebtoken';
 import {google} from 'googleapis';
@@ -6,6 +5,8 @@ import Integration from '../models/integration.model.js';
 import { decrypt, encrypt } from '../config/crypt.js';
 import axios from 'axios';
 import { integrations } from 'googleapis/build/src/apis/integrations/index.js';
+
+
 export const connectGoogle = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -78,12 +79,12 @@ export const googleCallback = async (req, res) => {
       });
     }
     connection.services = [
-      ...new Set ([
-        ...Integration (connection.services || []),
-        'gmail',
-        'google_calender',
-      ]),
-    ];
+  ...new Set([
+    ...(connection.services || []),
+    "gmail",
+    "google_calendar",
+  ]),
+];
     connection.account={
         ...connection.account?.toObject?.(),
         email:profile.email,
@@ -193,11 +194,12 @@ export const instagramCallback=async(req, res)=>{
     })
     const instagramAccounts=assignedAccounts.data.data
 
-    if(!instagramAccounts || !instagramAccounts.length==0){
-      console.error('No assigned Instagram account for this user.')
-      return res.redirect(`${process.env.FRONTEND_URL}/?instagram=error_no_error`)
-    }
-    const dynamicAccountId=instagramAccounts[0]
+    if (!instagramAccounts || instagramAccounts.length === 0) {
+      return res.redirect(
+      `${process.env.FRONTEND_URL}/integrations?instagram=error_no_account`
+    );
+  }
+    const dynamicAccountId=instagramAccounts[0].id
     const profile = await axios.get(`https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/${dynamicAccountId}`, {
       params: {
         fields: 'id,username,name',
@@ -262,16 +264,16 @@ export const getIntegrations = async(req, res) => {
       success: true,
       integrations: {
         gmail: {
-          connected: googleConnection.services.includes("gmail") || "false",
-          email: googleConnection.account.email || null
+          connected: googleConnection?.services.includes("gmail") || "false",
+          email: googleConnection?.account.email || null
         },
         google_calender: {
-          connected: googleConnection.services.includes("google_calender") || "false",
-          email: googleConnection.account.email || null
+          connected: googleConnection?.services.includes("google_calender") || false,
+          email: googleConnection?.account.email || null
         },
         instagram: {
-          connected: instagramConnection.services.includes("instagram") || "false",
-          username: instagramConnection.account.username || null
+          connected: instagramConnection?.services.includes("instagram") ||   false,
+          username: instagramConnection?.account.username || null
         },
 
       }
