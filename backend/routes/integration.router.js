@@ -18,8 +18,12 @@ integrationRouter.get ('/google/callback', googleCallback);
 integrationRouter.get ('/instagram/connect', protect, connectInstagram);
 integrationRouter.get ('/instagram/callback', instagramCallback);
 
-integrationRouter.get ('/google/disconnect', protect, disconnectGoogle);
-integrationRouter.get ('/instagram/disconnect', protect, disconnectInstagram);
+integrationRouter.delete ('/google/disconnect', protect, disconnectGoogle);
+integrationRouter.delete (
+  '/instagram/disconnect',
+  protect,
+  disconnectInstagram
+);
 
 integrationRouter.get ('/all', protect, getIntegrations);
 
