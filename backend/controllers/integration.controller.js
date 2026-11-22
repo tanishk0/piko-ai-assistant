@@ -5,6 +5,7 @@ import {google} from 'googleapis';
 import Integration from '../models/integration.model.js';
 import { decrypt, encrypt } from '../config/crypt.js';
 import axios from 'axios';
+import { integrations } from 'googleapis/build/src/apis/integrations/index.js';
 export const connectGoogle = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -185,7 +186,7 @@ export const instagramCallback=async(req, res)=>{
     const userAccessToken=tokenResponse.data.access_token
     const assignedAccounts = await axios.get(`https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/me/assigned_instagram_accounts`, {
       params: {
-        fields: 'id username',
+        fields: 'id, username',
         access_token: userAccessToken,
       },
       timeout: 15000,
@@ -197,8 +198,54 @@ export const instagramCallback=async(req, res)=>{
       return res.redirect(`${process.env.FRONTEND_URL}/?instagram=error_no_error`)
     }
     const dynamicAccountId=instagramAccounts[0]
+    const profile = await axios.get(`https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/${dynamicAccountId}`, {
+      params: {
+        fields: 'id,username,name',
+        access_token: userAccessToken,
+      },
+      timeout: 15000,
+    })
+    const filter = {
+      userId: decoded.userId,
+      provider: 'instagram',
+      providerAccountId: profile.id,
+    };
+    let connection = await Integration.findOne (filter).select (
+      '+tokens.accessToken'
+    );
+    if (!connection) {
+      connection = new Integration ({
+        ...filter,
+        services: [],
+        tokens: {},
+      });
+    }
+    connection.services = [
+      ...new Set ([
+        ...Integration (connection.services || []),
+        'instagram',
+      ]),
+    ];
+    connection.account={
+        ...connection.account?.toObject?.(),
+        username :profile.username,
+        displayName: profile.name || profile.username
+    }
+    connection.scopes= INSTAGRAM_SCOPES
+
+    if(tokens.access_token){
+        connection.tokens.accessToken= encrypt(userAccessToken)
+    }
     
+    if(tokens.expiry_date){
+      connection.tokens.expiresAt=null
+    }
+    connection.status='connected'
+    connection.connectedAt=new Date()
+    await connection.save()
+
+    return res.redirect(`${process.env.FRONTEND_URL}/integrations?instagram=connected`)
   } catch (error) {
-    
+      return res.status(500).json({message: `instagram callback error ${error}`}) 
   }
 }
