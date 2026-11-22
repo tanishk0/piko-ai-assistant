@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import {google} from 'googleapis';
 import Integration from '../models/integration.model.js';
 import { decrypt, encrypt } from '../config/crypt.js';
+import axios from 'axios';
 export const connectGoogle = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -171,6 +172,32 @@ export const instagramCallback=async(req, res)=>{
         message: 'invalid oauth state - instagram',
       });
     }
+    const tokenResponse=await axios.get(`https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/oauth/access_token`,{
+      params : {
+      client_id: INSTAGRAM_APP_ID,
+      client_secret: INSTAGRAM_APP_SECRET,
+      redirect_uri: INSTAGRAM_REDIRECT_URI,
+      code,
+    },
+    timeout: 15000
+    })
+    console.log('token response', tokenResponse)
+    const userAccessToken=tokenResponse.data.access_token
+    const assignedAccounts = await axios.get(`https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/me/assigned_instagram_accounts`, {
+      params: {
+        fields: 'id username',
+        access_token: userAccessToken,
+      },
+      timeout: 15000,
+    })
+    const instagramAccounts=assignedAccounts.data.data
+
+    if(!instagramAccounts || !instagramAccounts.length==0){
+      console.error('No assigned Instagram account for this user.')
+      return res.redirect(`${process.env.FRONTEND_URL}/?instagram=error_no_error`)
+    }
+    const dynamicAccountId=instagramAccounts[0]
+    
   } catch (error) {
     
   }
