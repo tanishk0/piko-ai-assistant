@@ -249,3 +249,34 @@ export const instagramCallback=async(req, res)=>{
       return res.status(500).json({message: `instagram callback error ${error}`}) 
   }
 }
+
+
+export const getIntegrations = async(req, res) => {
+  try {
+    const userId=req.user._id
+    const integrations = await Integration.find({userId, status: "connected"}).select('-tokens')
+
+    const googleConnection=integrations.find((item)=>item.provider==='google')
+    const instagramConnection=integrations.find((item)=>item.provider==='instagram')
+    return res.status(200).json({
+      success: true,
+      integrations: {
+        gmail: {
+          connected: googleConnection.services.includes("gmail") || "false",
+          email: googleConnection.account.email || null
+        },
+        google_calender: {
+          connected: googleConnection.services.includes("google_calender") || "false",
+          email: googleConnection.account.email || null
+        },
+        instagram: {
+          connected: instagramConnection.services.includes("instagram") || "false",
+          username: instagramConnection.account.username || null
+        },
+
+      }
+    })
+  } catch (error) {
+    return res.status(500).json({message: `get integrations error ${error}`})
+  }
+}
