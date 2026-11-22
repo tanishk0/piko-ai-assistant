@@ -302,3 +302,25 @@ export const disconnectGoogle = async(req, res)=> {
     return res.status(500).json({message: "Google disconnection failed ${error"})
   }
 }
+
+export const disconnectInstagram = async(req, res)=> {
+  try {
+    const userId=req.user._id
+    const connection = await Integration.findOne({
+      userId, 
+      provider:"instagram"
+    })
+
+    if(!connection){
+      return res.status(400).json({message: 'instagram connection not found'})
+    }
+
+    await Integration.deleteOne({
+      userId,
+      _id: connection._id,
+    })
+    return res.status(200).json({message: "Instagram disconnected succesfully"})
+  } catch (error) {
+    return res.status(500).json({message: "Instagram disconnection failed ${error"})
+  }
+}
