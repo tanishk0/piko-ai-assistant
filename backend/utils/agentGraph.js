@@ -144,149 +144,101 @@ export const createAgentGraph = async (agent, userId) => {
         }
         if (t.name === 'gmail_send' && !wantsGmailSend) {
           continue;
-              const summaries = [];
-              for (const m of messages.slice(0, 5)) {
-                const detail = await gmailClient.users.messages.get({
-                  userId: 'me',
-                  id: m.id,
-                  format: 'metadata',
-                  metadataHeaders: ['From', 'Subject', 'Date'],
-                });
-                const headers = detail.data.payload?.headers || [];
-                const subject = headers.find((h) => h.name === 'Subject')?.value || 'No Subject';
-                const from = headers.find((h) => h.name === 'From')?.value || 'Unknown';
-                const date = headers.find((h) => h.name === 'Date')?.value || '';
-                const snippet = detail.data.snippet || '';
-                summaries.push(`- From: ${from}\n  Subject: ${subject}\n  Date: ${date}\n  Snippet: ${snippet}`);
-              }
-
-              return `Recent emails:\n${summaries.join('\n\n')}`;
-            } catch (error) {
-              return `Error reading Gmail: ${error.message || error}`;
-            }
-          },
-        })
-      );
-    }
-
-    if (wantsGmailSend) {
-      finalTools.push(
-        new DynamicStructuredTool({
-          name: 'gmail_send',
-          description: 'Send an email from the user\'s connected Gmail account.',
-          schema: z.object({
-            to: z.string().describe('Recipient email address'),
-            subject: z.string().describe('Email subject line'),
-            body: z.string().describe('Body text content of the email'),
-          }),
-          func: async ({ to, subject, body }) => {
-            if (!gmailClient) {
-              return 'Gmail is not connected. Please ask the user to connect their Gmail account in the Integrations page.';
-            }
-            try {
-              const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
-              const messageParts = [
-                `To: ${to}`,
-                'Content-Type: text/plain; charset=utf-8',
-                'MIME-Version: 1.0',
-                `Subject: ${utf8Subject}`,
-                '',
-                body,
-              ];
-              const rawMessage = messageParts.join('\r\n');
-              const encodedMessage = Buffer.from(rawMessage)
-                .toString('base64')
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=+$/, '');
-
-              await gmailClient.users.messages.send({
-                userId: 'me',
-                requestBody: { raw: encodedMessage },
-              });
-
-              return `Email successfully sent to ${to} with subject "${subject}".`;
-            } catch (error) {
-              return `Error sending email: ${error.message || error}`;
-            }
-          },
-        })
-      );
+        }
+        finalTools.push(t);
+      }
+    } catch (err) {
+      console.error('Failed to load Gmail tools:', err);
     }
   }
 
-  // 4. Instagram Tools (if connected)
-  try {
-    const instaConn = await Integration.findOne({
-      userId,
-      provider: 'instagram',
-      status: 'connected',
-    }).select('+tokens.accessToken');
+  // 4. Google Calendar Tools
+  const wantsCalendarRead =
+    noFilter ||
+    agentToolsRequested.includes('calendar.read') ||
+    agentToolsRequested.includes('calendar');
+  const wantsCalendarCreate =
+    noFilter ||
+    agentToolsRequested.includes('calendar.create') ||
+    agentToolsRequested.includes('calendar');
 
-    if (instaConn?.tokens?.accessToken) {
-      const instaToken = decrypt(instaConn.tokens.accessToken);
-      const instagramAccountId = instaConn.providerAccountId;
-
-      finalTools.push(
-        new DynamicStructuredTool({
-          name: 'instagram_publish_photo',
-          description:
-            'Publish a photo to the user\'s connected Instagram account with a caption.',
-          schema: z.object({
-            imageUrl: z.string().url().describe('Publicly accessible URL of the image to publish'),
-            caption: z.string().describe('Caption text and hashtags for the Instagram post'),
-          }),
-          func: async ({ imageUrl, caption }) => {
-            try {
-              const graphVersion = process.env.INSTAGRAM_GRAPH_VERSION || 'v23.0';
-              // Step 1: Create media container
-              const createRes = await axios.post(
-                `https://graph.facebook.com/${graphVersion}/${instagramAccountId}/media`,
-                null,
-                {
-                  params: {
-                    image_url: imageUrl,
-                    caption,
-                    access_token: instaToken,
-                  },
-                }
-              );
-
-              const creationId = createRes.data?.id;
-              if (!creationId) {
-                return 'Failed to create Instagram media container.';
-              }
-
-              // Step 2: Publish container
-              const publishRes = await axios.post(
-                `https://graph.facebook.com/${graphVersion}/${instagramAccountId}/media_publish`,
-                null,
-                {
-                  params: {
-                    creation_id: creationId,
-                    access_token: instaToken,
-                  },
-                }
-              );
-
-              return `Post successfully published to Instagram! Post ID: ${publishRes.data?.id}`;
-            } catch (err) {
-              return `Instagram post error: ${err.response?.data?.error?.message || err.message || err}`;
-            }
-          },
-        })
-      );
+  if (wantsCalendarRead || wantsCalendarCreate) {
+    try {
+      const calendarTools = await createCalendarTools(userId);
+      for (const t of calendarTools) {
+        if (t.name === 'calendar_list_events' && !wantsCalendarRead) {
+          continue;
+        }
+        if (
+          (t.name === 'calendar_create_event' ||
+            t.name === 'calendar_delete_event') &&
+          !wantsCalendarCreate
+        ) {
+          continue;
+        }
+        finalTools.push(t);
+      }
+    } catch (err) {
+      console.error('Failed to load Calendar tools:', err);
     }
-  } catch (err) {
-    console.error('Failed to initialize Instagram tools for agent:', err);
   }
 
-  const llmWithTools = finalTools.length > 0
-    ? llm.bindTools(finalTools, { tool_choice: 'auto' })
-    : llm;
+  // 5. Instagram Integration Tools
+  const wantsInstagramRead =
+    noFilter ||
+    agentToolsRequested.includes('instagram.read') ||
+    agentToolsRequested.includes('instagram');
+  const wantsInstagramPost =
+    noFilter ||
+    agentToolsRequested.includes('instagram.post') ||
+    agentToolsRequested.includes('instagram');
 
-  const systemPrompt = `You are ${agent.name}, an autonomous task-execution agent.
-Never refer to yourself as ChatGPT or an AI trained by OpenAI.
+  if (wantsInstagramRead || wantsInstagramPost) {
+    try {
+      const instagramTools = await createInstagramTools(userId);
+      for (const t of instagramTools) {
+        if (
+          (t.name === 'instagram_get_profile' ||
+            t.name === 'instagram_get_recent_posts') &&
+          !wantsInstagramRead
+        ) {
+          continue;
+        }
+        if (t.name === 'instagram_publish_photo' && !wantsInstagramPost) {
+          continue;
+        }
+        finalTools.push(t);
+      }
+    } catch (err) {
+      console.error('Failed to load Instagram tools:', err);
+    }
+  }
+
+  const llmWithTools =
+    finalTools.length > 0
+      ? llm.bindTools(finalTools, { tool_choice: 'auto' })
+      : llm;
+
+  const now = new Date();
+  const currentDateTimeFormatted = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short',
+  }).format(now);
+
+  const isoDateTime = now.toISOString();
+
+  const systemPrompt = `You are ${agent.name}, an autonomous task-execution agent on the Automate AI platform.
+Never refer to yourself as ChatGPT or an AI assistant trained by OpenAI.
+
+Temporal Context:
+Current Date and Time: ${currentDateTimeFormatted} (ISO: ${isoDateTime})
+Use this context to accurately interpret relative time queries such as "today", "tomorrow", "this afternoon", "next week", etc.
 
 Directives:
 ${agent.instructions}
@@ -294,8 +246,8 @@ ${agent.instructions}
 ${agent.knowledgeBase ? `Knowledge Base:\n${agent.knowledgeBase}\n` : ''}
 
 Rules:
-1. Tool Execution: Use available tools to fetch data and perform tasks. Never fabricate tool outputs, URLs, or completed actions.
-2. Directness: Be concise, helpful, and direct in your responses.`;
+1. Tool Execution: Use available tools to fetch data, schedule events, read/send emails, or interact with Instagram. Never fabricate tool outputs, IDs, or completed actions.
+2. Directness: Be concise, clear, and action-oriented. Present lists, email previews, or event details in well-formatted markdown.`;
 
   const chatNode = async (state) => {
     const recentMessages = (state.messages || [])
