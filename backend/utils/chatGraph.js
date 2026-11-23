@@ -16,21 +16,21 @@ const llm = new ChatGroq({
 });
 
 const client = new MongoClient(process.env.MONGODB_URI);
-const client = new MongoClient (process.env.MONGODB_URI);
-const checkpointer = new MongoDBSaver ({client, dbName: 'langgraph'});
+const checkpointer = new MongoDBSaver({client, dbName: 'langgraph'});
+
 const chatNode = async state => {
-  const recentMessages = state.messages.slice (-4);
-  const response = await llm.invoke (recentMessages);
+  const recentMessages = state.messages.slice(-6);
+  const response = await llm.invoke(recentMessages);
   return {
     messages: [response],
   };
 };
 
-const workflow = new StateGraph (MessagesAnnotation)
-  .addNode ('chatNode', chatNode)
-  .addEdge ('__start__', 'chatNode')
-  .addEdge ('__start__', '__end__');
+const workflow = new StateGraph(MessagesAnnotation)
+  .addNode('chatNode', chatNode)
+  .addEdge('__start__', 'chatNode')
+  .addEdge('chatNode', '__end__');
 
-const chatGraph = workflow.compile ({checkpointer});
+const chatGraph = workflow.compile({checkpointer});
 
 export default chatGraph;
