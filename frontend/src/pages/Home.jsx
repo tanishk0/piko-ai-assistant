@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   ImagePlus,
+  Loader2,
   LogOut,
   PlusIcon,
   Settings2,
@@ -32,60 +33,81 @@ import { setUserData } from "@/redux/userSlice";
 import { Textarea } from "@/components/ui/textarea";
 import { setSelectedAgent } from "@/redux/agentSlice";
 import { agentChat, chat } from "@/features/chat.js";
+
 const darkPanel =
   "border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.35), inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl";
+
 const Home = () => {
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState([]);
   const { userData } = useSelector((state) => state.user);
   const { agents, selectedAgent } = useSelector((state) => state.agent);
   const dispatch = useDispatch();
   const [message, setMessage] = useState("");
+
   const handleLogout = async () => {
-    (setLogoutLoading(true), await logout());
+    setLogoutLoading(true);
+    await logout();
     dispatch(setUserData(null));
     setLogoutLoading(false);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const trimmed = message.trim();
+    if (!trimmed || sending) return;
+
+    setMessage("");
     setMessages((prev) => [
       ...prev,
       {
         role: "user",
-        content: message,
+        content: trimmed,
       },
     ]);
-    if (selectedAgent === "") {
-      const res = await chat(message);
+    setSending(true);
+
+    try {
+      let res;
+      if (!selectedAgent) {
+        res = await chat(trimmed);
+      } else {
+        res = await agentChat(trimmed, selectedAgent);
+      }
+
+      const replyContent =
+        res?.aiResponse ||
+        res?.response?.data?.message ||
+        res?.message ||
+        "Something went wrong";
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: replyContent,
+        },
+      ]);
+    } catch (err) {
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
           content:
-            res?.aiResponse ||
-            res?.response?.data?.message ||
-            "something went wrong",
+            err?.response?.data?.message ||
+            err?.message ||
+            "Failed to get a response.",
         },
       ]);
-      return;
-    } else {
-      const res = await agentChat(message, selectedAgent);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            res?.aiResponse ||
-            res?.response?.data?.message ||
-            "something went wrong",
-        },
-      ]);
-      return;
+    } finally {
+      setSending(false);
     }
   };
+
   const menuContent =
     "rounded-2xl border border-white/10 bg-[#1d2026]/95 p-1.5 text-zinc-100 shadow-2xl shadow-black/50 backdrop-blur-xl";
+
   return (
     <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,#2b2f3a_0%,#191b21_55%,#121317_100%)] px-4 text-white">
       {/* Background overlay */}
@@ -174,6 +196,12 @@ const Home = () => {
                 </button>
               </DropdownMenuTrigger>
 
+              <DropdownMenuContent align="end" className={`w-64`}>
+                <div className="flex items-center gap-3 px-3 py-3">
+                  <div className="">
+                    <p className="truncate text-xs font-medium">
+                      {userData?.name || "User"}
+                    </p>
               <DropdownMenuContent align="end" className={`w-64`}>
                 <div className="flex items-center gap-3 px-3 py-3">
                   <div className="">
