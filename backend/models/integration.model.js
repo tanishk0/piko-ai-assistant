@@ -39,11 +39,10 @@ const integrationSchema = new mongoose.Schema(
     },
     tokens: {
       accessToken: {
-      accessToken: {
         type: String,
         select: false,
       },
-      accessToken: {
+      refreshToken: {
         type: String,
         select: false,
       },
@@ -59,12 +58,13 @@ const integrationSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ['connected', 'expired', 'revoked', 'error'],
+      default: 'connected',
     },
     connectedAt: {
       type: Date,
       default: Date.now,
     },
-    lastUserAt: {
+    lastUsedAt: {
       type: Date,
       default: null,
     },
@@ -76,5 +76,7 @@ const integrationSchema = new mongoose.Schema(
   {timestamps: true}
 );
 
-const Integration = mongoose.model ('Integration', integrationSchema);
+integrationSchema.index({userId: 1, provider: 1});
+
+const Integration = mongoose.model('Integration', integrationSchema);
 export default Integration;
