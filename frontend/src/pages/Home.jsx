@@ -202,12 +202,6 @@ const Home = () => {
                     <p className="truncate text-xs font-medium">
                       {userData?.name || "User"}
                     </p>
-              <DropdownMenuContent align="end" className={`w-64`}>
-                <div className="flex items-center gap-3 px-3 py-3">
-                  <div className="">
-                    <p className="truncate text-xs font-medium">
-                      {userData?.name || "User"}
-                    </p>
                     <p className="truncate text-xs">
                       {userData?.email || "email"}
                     </p>
@@ -251,29 +245,40 @@ const Home = () => {
                       How can I help you?
                     </h1>
                     <p className="mt-4 max-w-sm text-xs leading-5 text-zinc-500">
-                      Ask questions, automate tasks or upload an image to
-                      prepare an Instagram post.
+                      Ask questions, automate tasks, or connect integrations
+                      to read emails, draft replies, and more.
                     </p>
                   </div>
                 )}
 
-                {messages.map((message, index) => (
+                {messages.map((msg, index) => (
                   <div
                     key={index}
-                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    {message.role === "assistant" && (
+                    {msg.role === "assistant" && (
                       <div className="mr-3 mt-1 grid size-8 shrink-0 place-items-center rounded-lg bg-white text-zinc-900">
                         <WorkflowIcon size={15} />
                       </div>
                     )}
                     <div
-                      className={`max-w-[90%] break-words px-4 py-3 text-sm leading-7 sm:max-w-[80%] ${message.role === "user" ? `rounded-2xl rounnded-br-md text-white ${darkPanel}` : "text-zinc-200"}`}
+                      className={`max-w-[90%] break-words px-4 py-3 text-sm leading-7 sm:max-w-[80%] ${
+                        msg.role === "user"
+                          ? `rounded-2xl rounded-br-md text-white ${darkPanel}`
+                          : "text-zinc-200"
+                      }`}
                     >
-                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
                     </div>
                   </div>
                 ))}
+
+                {sending && (
+                  <div className="flex items-center gap-2 text-xs text-zinc-400">
+                    <Loader2 size={16} className="animate-spin text-zinc-300" />
+                    <span>Thinking...</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="z-20 w-full shrink-0 px-3 pb-3 pt-2 sm:px-5 sm:pb-4">
@@ -284,13 +289,20 @@ const Home = () => {
                 <Textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder={`Ask me anything...`}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSubmit(e);
+                    }
+                  }}
+                  placeholder={
+                    selectedAgent
+                      ? `Message ${selectedAgent}...`
+                      : "Ask me anything..."
+                  }
                   className={`min-h-20 resize-none border-0 !bg-transparent px-2 py-1.5 text-sm text-white shadow-none placeholder:text-zinc-500 focus-visible:ring-0`}
                 />
-                <div
-                  className="flex items-center justify-between gap-3 pt-2
-                "
-                >
+                <div className="flex items-center justify-between gap-3 pt-2">
                   <div className="flex min-w-0 items-center gap-2">
                     <Button
                       type="button"
@@ -308,7 +320,7 @@ const Home = () => {
                           variant="ghost"
                           className={`h-8 max-w-48 gap-2 rounded-lg border border-white/10 bg-white/[0.05] px-2.5 text-xs text-zinc-300 hover:bg-white/10 hover:text-white`}
                         >
-                          <Bot />
+                          <Bot size={14} />
                           <span className="truncate">
                             {selectedAgent || "No agent"}
                           </span>
@@ -321,8 +333,23 @@ const Home = () => {
                         side="top"
                         className={`mb-2 w-60 ${menuContent}`}
                       >
-                        {!agents && (
-                          <DropdownMenuItem>No Agents Found</DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            dispatch(setSelectedAgent(""));
+                          }}
+                          className="cursor-pointer gap-2"
+                        >
+                          <WorkflowIcon size={14} className="shrink-0" />
+                          <span>Default Chat (No agent)</span>
+                          {!selectedAgent && <Check size={14} />}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+
+                        {agents?.length === 0 && (
+                          <div className="px-2 py-1.5 text-xs text-zinc-400">
+                            No custom agents yet
+                          </div>
                         )}
 
                         {agents?.map((agent, index) => (
@@ -336,14 +363,15 @@ const Home = () => {
                           >
                             <Bot
                               size={15}
-                              className="shrink-0 text-violet-600"
+                              className="shrink-0 text-violet-400"
                             />
-                            <span>{agent?.name}</span>
-
-                            {selectedAgent === agent?.name && <Check />}
+                            <span className="truncate">{agent?.name}</span>
+                            {selectedAgent === agent?.name && (
+                              <Check size={14} />
+                            )}
                           </DropdownMenuItem>
                         ))}
-                        <DropdownMenuSeparator></DropdownMenuSeparator>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem asChild className={menuContent}>
                           <Link
                             to={"/agents/new"}
@@ -358,11 +386,11 @@ const Home = () => {
 
                   <div className="flex items-center gap-2">
                     <Button
-                      onClick={(e) => handleSubmit(e)}
+                      disabled={!message.trim() || sending}
                       type="submit"
                       size="icon"
                       aria-label="Send message"
-                      className={`bg-white text-black size-8 shrink-0 hover:bg-white/90 `}
+                      className={`size-8 shrink-0 bg-white text-black hover:bg-white/90 disabled:opacity-40 disabled:cursor-not-allowed`}
                     >
                       <ArrowUp size={16} />
                     </Button>
