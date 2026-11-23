@@ -192,36 +192,164 @@ export const createAgentGraph = async (agent, userId) => {
                 return 'No messages found in Gmail.';
               }
 
+              const summaries = [];
+              for (const m of messages.slice(0, 5)) {
+                const detail = await gmailClient.users.messages.get({
+                  userId: 'me',
+                  id: m.id,
+                  format: 'metadata',
+                  metadataHeaders: ['From', 'Subject', 'Date'],
+                });
+                const headers = detail.data.payload?.headers || [];
+                const subject = headers.find((h) => h.name === 'Subject')?.value || 'No Subject';
+                const from = headers.find((h) => h.name === 'From')?.value || 'Unknown';
+                const date = headers.find((h) => h.name === 'Date')?.value || '';
+                const snippet = detail.data.snippet || '';
+                summaries.push(`- From: ${from}\n  Subject: ${subject}\n  Date: ${date}\n  Snippet: ${snippet}`);
+              }
 
+              return `Recent emails:\n${summaries.join('\n\n')}`;
+            } catch (error) {
+              return `Error reading Gmail: ${error.message || error}`;
+            }
+          },
+        })
+      );
+    }
 
-  const llmWithTools = llm.bindTools(finalTools, {
-    tool_choice: 'auto',
-  });
+    if (wantsGmailSend) {
+      finalTools.push(
+        new DynamicStructuredTool({
+          name: 'gmail_send',
+          description: 'Send an email from the user\'s connected Gmail account.',
+          schema: z.object({
+            to: z.string().describe('Recipient email address'),
+            subject: z.string().describe('Email subject line'),
+            body: z.string().describe('Body text content of the email'),
+          }),
+          func: async ({ to, subject, body }) => {
+            if (!gmailClient) {
+              return 'Gmail is not connected. Please ask the user to connect their Gmail account in the Integrations page.';
+            }
+            try {
+              const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
+              const messageParts = [
+                `To: ${to}`,
+                'Content-Type: text/plain; charset=utf-8',
+                'MIME-Version: 1.0',
+                `Subject: ${utf8Subject}`,
+                '',
+                body,
+              ];
+              const rawMessage = messageParts.join('\r\n');
+              const encodedMessage = Buffer.from(rawMessage)
+                .toString('base64')
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=+$/, '');
 
-  const currentDateTime = new Intl.DateTimeFormat('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    dateStyle: 'full',
-    timeStyle: 'long',
-  }).format(new Date());
+              await gmailClient.users.messages.send({
+                userId: 'me',
+                requestBody: { raw: encodedMessage },
+              });
 
-  const systemPrompt = `You are ${agent.name}, an autonomous task-execution agent. Never refer to yourself as ChatGPT or an assistant trained by OpenAI.
+              return `Email successfully sent to ${to} with subject "${subject}".`;
+            } catch (error) {
+              return `Error sending email: ${error.message || error}`;
+            }
+          },
+        })
+      );
+    }
+  }
+
+  // 4. Instagram Tools (if connected)
+  try {
+    const instaConn = await Integration.findOne({
+      userId,
+      provider: 'instagram',
+      status: 'connected',
+    }).select('+tokens.accessToken');
+
+    if (instaConn?.tokens?.accessToken) {
+      const instaToken = decrypt(instaConn.tokens.accessToken);
+      const instagramAccountId = instaConn.providerAccountId;
+
+      finalTools.push(
+        new DynamicStructuredTool({
+          name: 'instagram_publish_photo',
+          description:
+            'Publish a photo to the user\'s connected Instagram account with a caption.',
+          schema: z.object({
+            imageUrl: z.string().url().describe('Publicly accessible URL of the image to publish'),
+            caption: z.string().describe('Caption text and hashtags for the Instagram post'),
+          }),
+          func: async ({ imageUrl, caption }) => {
+            try {
+              const graphVersion = process.env.INSTAGRAM_GRAPH_VERSION || 'v23.0';
+              // Step 1: Create media container
+              const createRes = await axios.post(
+                `https://graph.facebook.com/${graphVersion}/${instagramAccountId}/media`,
+                null,
+                {
+                  params: {
+                    image_url: imageUrl,
+                    caption,
+                    access_token: instaToken,
+                  },
+                }
+              );
+
+              const creationId = createRes.data?.id;
+              if (!creationId) {
+                return 'Failed to create Instagram media container.';
+              }
+
+              // Step 2: Publish container
+              const publishRes = await axios.post(
+                `https://graph.facebook.com/${graphVersion}/${instagramAccountId}/media_publish`,
+                null,
+                {
+                  params: {
+                    creation_id: creationId,
+                    access_token: instaToken,
+                  },
+                }
+              );
+
+              return `Post successfully published to Instagram! Post ID: ${publishRes.data?.id}`;
+            } catch (err) {
+              return `Instagram post error: ${err.response?.data?.error?.message || err.message || err}`;
+            }
+          },
+        })
+      );
+    }
+  } catch (err) {
+    console.error('Failed to initialize Instagram tools for agent:', err);
+  }
+
+  const llmWithTools = finalTools.length > 0
+    ? llm.bindTools(finalTools, { tool_choice: 'auto' })
+    : llm;
+
+  const systemPrompt = `You are ${agent.name}, an autonomous task-execution agent.
+Never refer to yourself as ChatGPT or an AI trained by OpenAI.
 
 Directives:
 ${agent.instructions}
 
+${agent.knowledgeBase ? `Knowledge Base:\n${agent.knowledgeBase}\n` : ''}
+
 Rules:
 1. Tool Execution: Use available tools to fetch data and perform tasks. Never fabricate tool outputs, URLs, or completed actions.
-2. Autonomy & Boundaries: Execute reversible tasks and research independently. Require explicit user confirmation before irreversible actions (sending emails, making payments, publishing, or deleting data).
-3. Output Style: Be concise, factual, and direct. Skip pleasantries, filler, and repetitive acknowledgments.`;
+2. Directness: Be concise, helpful, and direct in your responses.`;
 
-  const approvalTools = new Set([
-    'send_email',
-    'create_calender_event',
-    'publish_instagram_post',
-  ]);
-  const chatNode = async state => {
-    const recentMessages = state.messages.slice(-4).map((message)=>limitMessageContext(message))
-    
+  const chatNode = async (state) => {
+    const recentMessages = (state.messages || [])
+      .slice(-6)
+      .map((message) => limitMessageContext(message));
+
     const response = await llmWithTools.invoke([
       new SystemMessage(systemPrompt),
       ...recentMessages,
@@ -232,32 +360,28 @@ Rules:
     };
   };
 
-  const toolNode = new ToolNode(finalTools);
-
-  const actionApprovalNode = () => { };
-
-  const routeAfterChat = state => {
+  const routeAfterChat = (state) => {
     const messages = state.messages || [];
-    console.log('state msgs: ', messages);
     const lastMessage = messages[messages.length - 1];
-    if (!lastMessage.tool_calls || lastMessage.tool_calls.length === 0) {
+    if (!lastMessage?.tool_calls || lastMessage.tool_calls.length === 0) {
       return '__end__';
     }
-    const requiresApproval = lastMessage?.tool_calls?.some((call) => (
-      approvalTools.has(call.name)
-    ))
-    return requiresApproval ? "actionApprovalNode" : "tools"
+    return 'tools';
   };
 
-  const routeAfterApproval = () => { };
   const workflow = new StateGraph(MessagesAnnotation)
     .addNode('chatNode', chatNode)
-    .addNode('tools', toolNode)
-    .addNode('actionApprovalNode', actionApprovalNode)
-    .addEdge('__start__', 'chatNode')
-    .addConditionalEdges('chatNode', routeAfterChat)
-    .addEdge('tools', 'chatNode')
-    .addConditionalEdges('actionApprovalNode', routeAfterApproval)
+    .addEdge('__start__', 'chatNode');
+
+  if (finalTools.length > 0) {
+    const toolNode = new ToolNode(finalTools);
+    workflow
+      .addNode('tools', toolNode)
+      .addConditionalEdges('chatNode', routeAfterChat)
+      .addEdge('tools', 'chatNode');
+  } else {
+    workflow.addEdge('chatNode', '__end__');
+  }
 
   const chatAgentGraph = workflow.compile({ checkpointer });
   return chatAgentGraph;
