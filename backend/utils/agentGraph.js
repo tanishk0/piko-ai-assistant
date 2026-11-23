@@ -11,11 +11,10 @@ import { SystemMessage } from '@langchain/core/messages';
 import { getMcpTools } from '../mcp/lg-mcp.js';
 import z from 'zod';
 import { DynamicStructuredTool } from '@langchain/core/tools';
-import Integration from '../models/integration.model.js';
-import { decrypt } from '../config/crypt.js';
-import { google } from 'googleapis';
-import axios from 'axios';
-import jwt from 'jsonwebtoken'
+import { createGmailTools } from '../tools/gmail.tools.js';
+import { createCalendarTools } from '../tools/calendar.tools.js';
+import { createInstagramTools } from '../tools/instagram.tools.js';
+
 dotenv.config();
 
 const llm = new ChatGroq({
@@ -30,17 +29,6 @@ const checkpointer = new MongoDBSaver({ client, dbName: 'langgraph' });
 const findTool = (tools, names) => {
   return tools.find((tool) => names.includes(tool.name));
 };
-
-const makeAuthToken=(userId)=>{
-  return jwt.sign({}, process.env.MCP_AUTH_SECRET,{
-    algorithm:"HS256",
-    subject:String(userId),
-    expiresIn: "2m",
-    issuer: "automate-backend",
-    audience: "automate-mcp",
-  })
-}
-
 
 const limitMessageContext = (message, maxChars = 2000) => {
   if (typeof message.content !== 'string') {
@@ -59,10 +47,11 @@ const limitMessageContext = (message, maxChars = 2000) => {
 export const createAgentGraph = async (agent, userId) => {
   const agentToolsRequested = Array.isArray(agent.tools) ? agent.tools : [];
   const finalTools = [];
+  const noFilter = agentToolsRequested.length === 0;
 
   // 1. Web Search Tool (via MCP)
   const wantsWebSearch =
-    agentToolsRequested.length === 0 ||
+    noFilter ||
     agentToolsRequested.includes('web.search') ||
     agentToolsRequested.includes('web_search');
 
@@ -105,22 +94,24 @@ export const createAgentGraph = async (agent, userId) => {
 
   // 2. Calculator Tool
   const wantsCalculator =
-    agentToolsRequested.length === 0 ||
-    agentToolsRequested.includes('calculator');
+    noFilter || agentToolsRequested.includes('calculator');
 
   if (wantsCalculator) {
     finalTools.push(
       new DynamicStructuredTool({
         name: 'calculator',
-        description: 'Perform arithmetic computations and mathematical evaluations.',
+        description:
+          'Perform arithmetic computations and mathematical evaluations.',
         schema: z.object({
-          expression: z.string().describe('Math expression to evaluate, e.g. "125 * 45" or "(1200 / 4) + 50"'),
+          expression: z
+            .string()
+            .describe(
+              'Math expression to evaluate, e.g. "125 * 45" or "(1200 / 4) + 50"'
+            ),
         }),
         func: async ({ expression }) => {
           try {
-            // Clean expression to allow only numbers, basic math operators, parentheses, and Math functions
             const sanitized = expression.replace(/[^0-9+\-*/().%^ \t]/g, '');
-            // Evaluate safely using Function with limited scope
             const result = Function(`"use strict"; return (${sanitized})`)();
             return `Result: ${result}`;
           } catch (error) {
@@ -133,65 +124,26 @@ export const createAgentGraph = async (agent, userId) => {
 
   // 3. Gmail Integration Tools
   const wantsGmailRead =
-    agentToolsRequested.length === 0 || agentToolsRequested.includes('gmail.read');
+    noFilter ||
+    agentToolsRequested.includes('gmail.read') ||
+    agentToolsRequested.includes('gmail');
   const wantsGmailSend =
-    agentToolsRequested.length === 0 || agentToolsRequested.includes('gmail.send');
+    noFilter ||
+    agentToolsRequested.includes('gmail.send') ||
+    agentToolsRequested.includes('gmail');
 
   if (wantsGmailRead || wantsGmailSend) {
-    let gmailClient = null;
     try {
-      const googleConn = await Integration.findOne({
-        userId,
-        provider: 'google',
-        status: 'connected',
-      }).select('+tokens.accessToken +tokens.refreshToken');
-
-      if (googleConn?.tokens?.accessToken) {
-        const accessToken = decrypt(googleConn.tokens.accessToken);
-        const refreshToken = googleConn.tokens?.refreshToken
-          ? decrypt(googleConn.tokens.refreshToken)
-          : undefined;
-
-        const oauth2Client = new google.auth.OAuth2(
-          process.env.GOOGLE_CLIENT_ID,
-          process.env.GOOGLE_CLIENT_SECRET
-        );
-        oauth2Client.setCredentials({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        gmailClient = google.gmail({ version: 'v1', auth: oauth2Client });
-      }
-    } catch (err) {
-      console.error('Failed to initialize Gmail client for agent:', err);
-    }
-
-    if (wantsGmailRead) {
-      finalTools.push(
-        new DynamicStructuredTool({
-          name: 'gmail_read',
-          description:
-            'Read recent emails or search messages from the user\'s connected Gmail account.',
-          schema: z.object({
-            maxResults: z.number().optional().default(5).describe('Maximum number of emails to retrieve (1-10)'),
-            query: z.string().optional().describe('Optional Gmail search query e.g. "from:example@gmail.com" or "is:unread"'),
-          }),
-          func: async ({ maxResults = 5, query = '' }) => {
-            if (!gmailClient) {
-              return 'Gmail is not connected. Please ask the user to connect their Gmail account in the Integrations page.';
-            }
-            try {
-              const listRes = await gmailClient.users.messages.list({
-                userId: 'me',
-                maxResults: Math.min(maxResults, 10),
-                q: query,
-              });
-
-              const messages = listRes.data.messages || [];
-              if (messages.length === 0) {
-                return 'No messages found in Gmail.';
-              }
-
+      const gmailTools = await createGmailTools(userId);
+      for (const t of gmailTools) {
+        if (
+          (t.name === 'gmail_read' || t.name === 'gmail_get_email_details') &&
+          !wantsGmailRead
+        ) {
+          continue;
+        }
+        if (t.name === 'gmail_send' && !wantsGmailSend) {
+          continue;
               const summaries = [];
               for (const m of messages.slice(0, 5)) {
                 const detail = await gmailClient.users.messages.get({
