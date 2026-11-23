@@ -2,12 +2,13 @@ import Agent from '../models/agent.model.js';
 import { createAgentGraph } from '../utils/agentGraph.js';
 import chatGraph from '../utils/chatGraph.js';
 import { HumanMessage } from '@langchain/core/messages';
+
 export const chat = async (req, res) => {
   try {
     const { message } = req.body;
     if (!message) {
       return res.status(400).json({
-        message: 'message required',
+        message: 'Message is required',
       });
     }
     const threadId = req.user._id.toString();
@@ -20,14 +21,14 @@ export const chat = async (req, res) => {
       }
     );
 
-    const lastMessage = data.messages[data.messages.length - 1].content;
+    const lastMessage = data.messages[data.messages.length - 1]?.content || '';
 
     return res.status(200).json({
-      aiResponse: lastMessage,
+      aiResponse: typeof lastMessage === 'string' ? lastMessage : JSON.stringify(lastMessage),
     });
   } catch (error) {
     return res.status(500).json({
-      message: `Chat controller error ${error}`,
+      message: `Chat error: ${error.message || error}`,
     });
   }
 };
@@ -35,6 +36,8 @@ export const chat = async (req, res) => {
 export const agentChat = async (req, res) => {
   try {
     const { message, agent } = req.body;
+    if (!message) {
+      return res.status(400).json({
     if (!message) {
       return res.status(400).json({
         message: 'message required',
