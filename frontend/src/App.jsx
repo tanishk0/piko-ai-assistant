@@ -39,38 +39,39 @@ function App() {
       try {
         const data = await getAllAgents();
         dispatch(setAgents(data || []));
-        const data = await me();
-        dispatch(setUserData(data || null));
       } catch (error) {
-        console.log(error);
-        dispatch(setUserData(null));
+        console.log("Fetch agents error:", error);
+      } finally {
+        dispatch(setAgentsLoading(false));
       }
     };
 
-    fetchUser();
-  }, [dispatch]);
+    if (userData) {
+      fetchAgents();
+    }
+  }, [userData, dispatch]);
 
   if (loading) return <div>Loading...</div>;
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={userData ? <Home /> : <Login />} />
+        <Route path="/login" element={userData ? <Navigate to="/" /> : <Login />} />
         <Route
           path="/"
-          element={userData ? <Home /> : <Navigate to={"/login"} />}
+          element={userData ? <Home /> : <Navigate to="/login" />}
         />
         <Route
           path="/agents"
-          element={userData ? <Agents /> : <Navigate to={"/login"} />}
+          element={userData ? <Agents /> : <Navigate to="/login" />}
         />
         <Route
           path="/integrations"
-          element={userData ? <Integration /> : <Navigate to={"/login"} />}
+          element={userData ? <Integration /> : <Navigate to="/login" />}
         />
         <Route
           path="/agents/new"
-          element={userData ? <CreateAgent /> : <Navigate to={"/login"} />}
+          element={userData ? <CreateAgent /> : <Navigate to="/login" />}
         />
       </Routes>
     </BrowserRouter>
