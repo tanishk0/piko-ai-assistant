@@ -7,7 +7,6 @@ import { setUserData } from "./redux/userSlice.js";
 import {
   setAgents,
   setAgentsLoading,
-  setSelectedAgent,
 } from "./redux/agentSlice.js";
 import Home from "./pages/Home";
 import Agents from "./pages/Agents";
@@ -17,27 +16,29 @@ import { getAllAgents } from "./features/agent.js";
 
 function App() {
   const dispatch = useDispatch();
-  const fetchAgents = async () => {
-    dispatch(setAgentsLoading(true));
-    try {
-      const data = await getAllAgents();
-      dispatch(setAgents(data));
-      dispatch(setAgentsLoading(false));
-    } catch (error) {
-      console.log(error);
-      dispatch(setAgentsLoading(false));
-    }
-  };
-
-  useEffect(() => {
-    fetchAgents();
-  }, []);
-
   const { userData, loading } = useSelector((state) => state.user);
 
   useEffect(() => {
     const fetchUser = async () => {
       try {
+        const data = await me();
+        dispatch(setUserData(data || null));
+      } catch (error) {
+        console.log("Auth fetch error:", error);
+        dispatch(setUserData(null));
+      }
+    };
+
+    fetchUser();
+  }, [dispatch]);
+
+  useEffect(() => {
+    const fetchAgents = async () => {
+      if (!userData) return;
+      dispatch(setAgentsLoading(true));
+      try {
+        const data = await getAllAgents();
+        dispatch(setAgents(data || []));
         const data = await me();
         dispatch(setUserData(data || null));
       } catch (error) {
