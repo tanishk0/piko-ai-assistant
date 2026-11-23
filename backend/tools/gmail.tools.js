@@ -9,20 +9,22 @@ export const createGmailTools = async (userId) => {
   const gmailReadTool = new DynamicStructuredTool({
     name: 'gmail_read',
     description:
-      'Search and list emails from the user\'s connected Gmail account. Use query operators like "is:unread", "from:user@domain.com", or general search keywords.',
+      'Search and list emails from the user\'s connected Gmail account. Supports full Gmail search syntax including date filters (e.g. "after:2024/01/15 before:2024/02/01", "older_than:30d", "newer_than:7d"), status ("is:unread"), senders ("from:user@domain.com"), subjects ("subject:invoice"), or general keywords.',
     schema: z.object({
       query: z
         .string()
         .optional()
         .default('')
-        .describe('Gmail search filter e.g. "is:unread", "subject:meeting", or keywords'),
+        .describe(
+          'Gmail search query. Supports date operators like "after:YYYY/MM/DD", "before:YYYY/MM/DD", "older_than:2m", "newer_than:7d", sender filters like "from:...", or keywords'
+        ),
       maxResults: z
         .number()
         .optional()
-        .default(5)
+        .default(10)
         .describe('Maximum number of emails to retrieve (1 to 10)'),
     }),
-    func: async ({ query = '', maxResults = 5 }) => {
+    func: async ({ query = '', maxResults = 10 }) => {
       if (error || !client) {
         return error || 'Gmail is not connected. Please connect your Google account in the Integrations page.';
       }
@@ -30,7 +32,7 @@ export const createGmailTools = async (userId) => {
         const gmail = google.gmail({ version: 'v1', auth: client });
         const listRes = await gmail.users.messages.list({
           userId: 'me',
-          maxResults: Math.min(Math.max(maxResults, 1), 10),
+          maxResults: Math.min(Math.max(maxResults, 1), 20),
           q: query,
         });
 
@@ -56,8 +58,6 @@ export const createGmailTools = async (userId) => {
             const date = headers.find((h) => h.name === 'Date')?.value || '';
             const snippet = detail.data.snippet || '';
             summaries.push(
-              `• Message ID: ${m.id}\n  From: ${from}\n  Subject: ${subject}\n  Date: ${date}\n  Snippet: ${snippet}`
-            );
           } catch (innerErr) {
             console.error(`Failed to read email ${m.id}:`, innerErr);
           }
