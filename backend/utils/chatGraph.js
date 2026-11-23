@@ -8,7 +8,7 @@ import {MongoClient} from 'mongodb';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const llm = createLLM({ temperature: 0.2 });
+const llm = createLLM({ temperature: 0.3 });
 
 const client = new MongoClient(process.env.MONGODB_URI);
 const checkpointer = new MongoDBSaver({client, dbName: 'langgraph'});
