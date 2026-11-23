@@ -85,3 +85,90 @@ export const createInstagramTools = async (userId) => {
       try {
         const res = await axios.get(
           `https://graph.facebook.com/${graphVersion}/${accountId}/media`,
+          {
+            params: {
+              fields: 'id,caption,media_type,permalink,timestamp,like_count,comments_count',
+              limit: Math.min(Math.max(limit, 1), 10),
+              access_token: token,
+            },
+            timeout: 10000,
+          }
+        );
+
+        const posts = res.data?.data || [];
+        if (posts.length === 0) {
+          return 'No posts found on this Instagram account.';
+        }
+
+        const formatted = posts.map((post) => {
+          const caption = post.caption ? post.caption.slice(0, 150) : '(No caption)';
+          const date = post.timestamp ? new Date(post.timestamp).toLocaleDateString() : '';
+          return `• Post ID: ${post.id}\n  Date: ${date}\n  Type: ${post.media_type}\n  Likes: ${post.like_count ?? 0} | Comments: ${post.comments_count ?? 0}\n  Caption: ${caption}\n  URL: ${post.permalink || 'N/A'}`;
+        });
+
+        return `Recent Instagram Posts (${posts.length}):\n\n${formatted.join('\n\n')}`;
+      } catch (err) {
+        return `Failed to fetch recent Instagram posts: ${err.response?.data?.error?.message || err.message || err}`;
+      }
+    },
+  });
+
+  const instagramPublishPhotoTool = new DynamicStructuredTool({
+    name: 'instagram_publish_photo',
+    description:
+      'Publish an image post with a caption and hashtags to the connected Instagram account.',
+    schema: z.object({
+      imageUrl: z
+        .string()
+        .url()
+        .describe('Publicly accessible image URL (JPEG/PNG hosted on a public server)'),
+      caption: z
+        .string()
+        .describe('Text caption and hashtags for the Instagram post'),
+    }),
+    func: async ({ imageUrl, caption }) => {
+      if (error || !token || !accountId) {
+        return error || 'Instagram is not connected. Please connect Instagram in the Integrations page.';
+      }
+      try {
+        // Step 1: Create media container
+        const createRes = await axios.post(
+          `https://graph.facebook.com/${graphVersion}/${accountId}/media`,
+          null,
+          {
+            params: {
+              image_url: imageUrl,
+              caption,
+              access_token: token,
+            },
+            timeout: 15000,
+          }
+        );
+
+        const creationId = createRes.data?.id;
+        if (!creationId) {
+          return 'Failed to initialize Instagram media container.';
+        }
+
+        // Step 2: Publish media container
+        const publishRes = await axios.post(
+          `https://graph.facebook.com/${graphVersion}/${accountId}/media_publish`,
+          null,
+          {
+            params: {
+              creation_id: creationId,
+              access_token: token,
+            },
+            timeout: 15000,
+          }
+        );
+
+        return `Post successfully published to Instagram!\n• Post ID: ${publishRes.data?.id}\n• Caption: ${caption.slice(0, 80)}...`;
+      } catch (err) {
+        return `Instagram publish error: ${err.response?.data?.error?.message || err.message || err}`;
+      }
+    },
+  });
+
+  return [instagramGetProfileTool, instagramGetRecentPostsTool, instagramPublishPhotoTool];
+};
