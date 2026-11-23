@@ -1,10 +1,10 @@
 import mongoose from 'mongoose';
-import {lowercase} from 'zod';
 
-const integrationSchema = new mongoose.Schema (
+const integrationSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
       required: true,
     },
     provider: {
@@ -15,10 +15,10 @@ const integrationSchema = new mongoose.Schema (
     services: [
       {
         type: String,
-        enum: ['gmail', 'google_calender', 'instagram'],
+        enum: ['gmail', 'google_calendar', 'google_calender', 'instagram'],
       },
     ],
-    providerAccoundId: {
+    providerAccountId: {
       type: String,
       required: true,
     },
@@ -38,6 +38,7 @@ const integrationSchema = new mongoose.Schema (
       },
     },
     tokens: {
+      accessToken: {
       accessToken: {
         type: String,
         select: false,
