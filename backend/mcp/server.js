@@ -78,6 +78,7 @@ server.registerTool(
       // If no results or an error occurred
       if (!result?.results || result.results.length === 0) {
         return {
+          content: [{ type: 'text', text: 'No relevant search results found.' }],
         };
       }
       // Take only the top 2 results and keep the text concise
@@ -108,6 +109,43 @@ server.registerTool(
     }
   }
 );
+
+server.registerTool(
+  'send_email',
+  {
+    description: "send an email through the authenticated user's connected gmail account. Only execute after user approval",
+    inputSchema: z.object({
+      authToken: z.string().min(1),
+      to: z.string().email(),
+      subject: z.string().trim().min(1).max(200),
+      body: z.string().trim().min(1).max(2000),
+
+    }),
+  },
+  async ({authToken, to, subject, body }) => {
+    try {
+      const userId = verifyAuthToken(authToken)
+      const oauthClient= await getGoogleOauthClient(userId, "gmail")
+      const gmail = google.gmail({
+        version:"v1",
+        auth: oauthClient,
+      })
+
+    } catch (error) {
+      console.log(error);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: 'web search failed',
+          },
+        ],
+      };
+    }
+  }
+);
+
+
 
 const main = async () => {
   const transport = new StdioServerTransport();
