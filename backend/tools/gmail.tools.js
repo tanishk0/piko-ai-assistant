@@ -58,6 +58,8 @@ export const createGmailTools = async (userId) => {
             const date = headers.find((h) => h.name === 'Date')?.value || '';
             const snippet = detail.data.snippet || '';
             summaries.push(
+              `• Message ID: ${m.id}\n  From: ${from}\n  Subject: ${subject}\n  Date: ${date}\n  Snippet: ${snippet}`
+            );
           } catch (innerErr) {
             console.error(`Failed to read email ${m.id}:`, innerErr);
           }
@@ -110,7 +112,7 @@ export const createGmailTools = async (userId) => {
           body = res.data.snippet || 'No readable text body found.';
         }
 
-        return `Email Details:\nFrom: ${from}\nTo: ${to}\nDate: ${date}\nSubject: ${subject}\n\nBody:\n${body.slice(0, 3000)}`;
+        return `Email Details:\nFrom: ${from}\nTo: ${to}\nDate: ${date}\nSubject: ${subject}\n\nBody:\n${body.slice(0, 4000)}`;
       } catch (err) {
         return `Failed to fetch email details for ID ${messageId}: ${err.message || err}`;
       }
