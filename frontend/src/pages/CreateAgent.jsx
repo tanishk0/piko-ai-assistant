@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { createAgent } from "@/features/agent.js";
+
 const darkPanel =
   "border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.35), inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl";
 
@@ -25,12 +26,12 @@ const availableTools = [
   {
     id: "gmail.read",
     name: "Read Emails",
-    description: "Read and summarize emails",
+    description: "Read and summarize emails via connected Gmail",
   },
   {
     id: "gmail.send",
     name: "Send emails",
-    description: "Draft and send emails",
+    description: "Draft and send emails via connected Gmail",
   },
 ];
 
@@ -42,6 +43,7 @@ const CreateAgent = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
   const toggleTool = (tool) => {
     setTools((prevTools) =>
       prevTools.includes(tool)
@@ -53,6 +55,8 @@ const CreateAgent = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError("");
+
     try {
       await createAgent({
         name,
@@ -61,12 +65,17 @@ const CreateAgent = () => {
         tools,
       });
       navigate("/agents");
-      setLoading(false);
-    } catch (error) {
-      setError(error.response.data.message || "Unexpected error");
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Unexpected error creating agent",
+      );
+    } finally {
       setLoading(false);
     }
   };
+
   return (
     <div className="relative flex h-dvh flex-col w-full items-center bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,#2b2f3a_0%,#191b21_55%,#121317_100%)] overflow-y-auto text-white">
       <div
@@ -108,11 +117,10 @@ const CreateAgent = () => {
           </div>
           <form
             onSubmit={handleSubmit}
-            action=""
             className={`space-y-7 rounded-3xl p-5 sm:p-7 ${darkPanel}`}
           >
             <section className="space-y-5">
-              <div className="">
+              <div>
                 <label
                   htmlFor="agent-name"
                   className="mb-2 block text-xs font-medium text-zinc-300"
