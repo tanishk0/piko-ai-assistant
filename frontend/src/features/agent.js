@@ -4,8 +4,7 @@ export const createAgent = async ({
   name,
   knowledgeBase,
   instructions,
-  tools,
-}) => {
+  }) => {
   try {
     const {data} = await api.post ('/api/agent/create', {
       name,
