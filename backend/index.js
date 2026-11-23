@@ -19,19 +19,23 @@ app.use(
   cors({
     origin: (process.env.FRONTEND_URL || 'http://localhost:5173')
       .replace(/['"]+/g, '')
-  cors ({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+      .replace(/\/$/, ''),
     credentials: true,
   })
 );
 
-app.use (cookieParser ());
+app.use(cookieParser());
 
-app.use ('/api/auth', authRouter);
-app.use ('/api/agent', agentRouter);
-app.use ('/api/chat', chatRouter);
-app.use ('/api/integrations', integrationRouter);
-getMcpTools ();
-app.listen (port, () => {
-  connectDb (), console.log ('Server started at', port);
+app.use('/api/auth', authRouter);
+app.use('/api/agent', agentRouter);
+app.use('/api/chat', chatRouter);
+app.use('/api/integrations', integrationRouter);
+// Alias so both /api/integrations and /api/integration routes (e.g. OAuth callbacks) work
+app.use('/api/integration', integrationRouter);
+
+getMcpTools();
+
+app.listen(port, () => {
+  connectDb();
+  console.log('Server started at', port);
 });
