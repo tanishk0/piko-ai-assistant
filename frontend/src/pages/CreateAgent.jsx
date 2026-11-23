@@ -128,6 +128,7 @@ const CreateAgent = () => {
                   Agent Name
                 </label>
                 <Input
+                  id="agent-name"
                   onChange={(e) => setName(e.target.value)}
                   value={name}
                   placeholder="eg. Research Assistant"
@@ -144,6 +145,7 @@ const CreateAgent = () => {
                   Instructions
                 </label>
                 <Input
+                  id="instructions"
                   onChange={(e) => setInstructions(e.target.value)}
                   value={instructions}
                   placeholder="Instructions"
@@ -160,16 +162,16 @@ const CreateAgent = () => {
                   Knowledge Base
                 </label>
                 <Textarea
+                  id="knowledgeBase"
                   onChange={(e) => setKnowledgeBase(e.target.value)}
                   value={knowledgeBase}
                   placeholder="Add knowledge, context you think your agent might need."
                   maxLength={1000}
-                  required
                   className={`h-40 resize-none ${fieldCls}`}
                 />
               </div>
             </section>
-            <section className="">
+            <section>
               <div className="mb-3">
                 <h2 className="text-xs font-medium text-zinc-300">Tools</h2>
                 <p className="mt-1 text-xs text-zinc-500">
@@ -187,10 +189,15 @@ const CreateAgent = () => {
                         e.preventDefault();
                         toggleTool(t.id);
                       }}
-                      className={`flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition ${i !== 0 ? "border-t border-white/[0.08]" : " "}
-                   ${selected ? "bg-white/[0.09]" : "bg-white/[0.02] hover:bg-white/[0.05]"}`}
+                      className={`flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition ${
+                        i !== 0 ? "border-t border-white/[0.08]" : " "
+                      } ${
+                        selected
+                          ? "bg-white/[0.09]"
+                          : "bg-white/[0.02] hover:bg-white/[0.05]"
+                      }`}
                     >
-                      <div className="">
+                      <div>
                         <p className="text-xs font-medium text-zinc-100">
                           {t.name}
                         </p>
@@ -216,14 +223,15 @@ const CreateAgent = () => {
                 type="button"
                 variant="ghost"
                 className={`rounded-xl text-xs text-zinc-400 hover:bg-white/10 hover:text-white cursor-pointer`}
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/agents")}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
+                disabled={loading}
                 className={
-                  "h-8 rounded-md bg-white px-4 text-xs font-medium text-zinc-900 hover:bg-zinc-200 cursor-pointer"
+                  "h-8 rounded-md bg-white px-4 text-xs font-medium text-zinc-900 hover:bg-zinc-200 cursor-pointer disabled:opacity-50"
                 }
               >
                 {loading ? "Creating..." : "Create Agent"}
