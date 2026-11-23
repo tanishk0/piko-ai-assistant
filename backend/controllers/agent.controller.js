@@ -5,17 +5,18 @@ export const createAgent = async (req, res) => {
     const {name, knowledgeBase, instructions, tools} = req.body;
     if (!name || !instructions) {
       return res
-        .status (400)
-        .json ({message: 'Name and instructions are required'});
-    }
-    const existingAgent = await Agent.findOne ({name});
-    if (existingAgent) {
-      return res.status (501).json ({
-        message: 'Agent names should be unique',
-      });
+        .status(400)
+        .json({message: 'Name and instructions are required'});
     }
     const userId = req.user._id;
-    const agent = await Agent.create ({
+    const existingAgent = await Agent.findOne({name, userId});
+    if (existingAgent) {
+      return res.status(400).json({
+        message: 'You already have an agent with this name',
+      });
+    }
+
+    const agent = await Agent.create({
       name,
       knowledgeBase,
       instructions,
@@ -23,14 +24,18 @@ export const createAgent = async (req, res) => {
       userId,
     });
 
-    return res.status (201).json (agent);
+    return res.status(201).json(agent);
   } catch (error) {
-    return res.status (500).json ({message: 'create agent error', error});
+    return res.status(500).json({message: error.message || 'Create agent error'});
   }
 };
 
 export const getAllAgents = async (req, res) => {
   try {
+    const userId = req.user._id;
+
+    const agents = await Agent.find({
+      userId,
     const userId = req.user._id;
 
     const agents = await Agent.find ({
