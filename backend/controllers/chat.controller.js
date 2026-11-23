@@ -38,14 +38,15 @@ export const agentChat = async (req, res) => {
     const { message, agent } = req.body;
     if (!message) {
       return res.status(400).json({
-    if (!message) {
-      return res.status(400).json({
-        message: 'message required',
+        message: 'Message is required',
       });
     }
 
-    // 1. Await the agent first
-    const existingAgent = await Agent.findOne({ name: agent });
+    // 1. Look up agent for this user (or fallback by name)
+    const existingAgent =
+      (await Agent.findOne({ name: agent, userId: req.user._id })) ||
+      (await Agent.findOne({ name: agent }));
+
     if (!existingAgent) {
       return res.status(404).json({
         message: 'Agent not found',
@@ -61,16 +62,18 @@ export const agentChat = async (req, res) => {
         messages: [new HumanMessage(message)],
       },
       {
-        configurable: { thread_id: threadId }, recursionLimit: 5,
+        configurable: { thread_id: threadId },
+        recursionLimit: 8,
       }
     );
-    const lastMessage = result.messages[result.messages.length - 1].content;
+    const lastMessage = result.messages[result.messages.length - 1]?.content || '';
     return res.status(200).json({
-      aiResponse: lastMessage,
+      aiResponse: typeof lastMessage === 'string' ? lastMessage : JSON.stringify(lastMessage),
     });
   } catch (error) {
+    console.error('Agent chat error:', error);
     return res.status(500).json({
-      message: `agent chat controller error ${error}`,
+      message: `Agent chat error: ${error.message || error}`,
     });
   }
 };
