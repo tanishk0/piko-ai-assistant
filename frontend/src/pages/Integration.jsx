@@ -58,6 +58,41 @@ const Integration = () => {
 
   useEffect(() => {
     fetchAllIntegrations();
+
+    // Check URL parameters for OAuth redirect feedback
+    const params = new URLSearchParams(window.location.search);
+    const googleParam = params.get("google");
+    const instaParam = params.get("instagram");
+    const messageParam = params.get("message");
+
+    if (googleParam === "connected") {
+      setSuccess("Google account (Gmail & Calendar) connected successfully!");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (googleParam === "error") {
+      setError(
+        `Google connection failed: ${
+          messageParam ? decodeURIComponent(messageParam) : "Authorization was denied or failed."
+        }`,
+      );
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (instaParam === "connected") {
+      setSuccess("Instagram account connected successfully!");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (instaParam === "error_no_account") {
+      setError(
+        "No Instagram Business or Creator account found linked to your Facebook page/account.",
+      );
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (instaParam === "error") {
+      setError(
+        `Instagram connection failed: ${
+          messageParam ? decodeURIComponent(messageParam) : "Authorization was denied or failed."
+        }`,
+      );
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
 
   // Connect integration
@@ -99,8 +134,11 @@ const Integration = () => {
 
   // Disconnect integration
   const handleDisconnect = async (id) => {
+    const isGoogle = id === "gmail" || id === "googleCalendar";
+    const label = isGoogle ? "Google account (Gmail & Calendar)" : "Instagram account";
+
     const confirmed = window.confirm(
-      `Are you sure you want to disconnect ${id}?`,
+      `Are you sure you want to disconnect ${label}?`,
     );
 
     if (!confirmed) return;
@@ -110,29 +148,15 @@ const Integration = () => {
     setSuccess("");
 
     try {
-      if (id === "gmail" || id === "googleCalendar") {
+      if (isGoogle) {
         await disconnectGoogle();
+        setSuccess("Google account disconnected successfully.");
       } else if (id === "instagram") {
         await disconnectInstagram();
+        setSuccess("Instagram disconnected successfully.");
       } else {
         throw new Error("Unsupported integration.");
       }
-
-      setSuccess(`${id} disconnected successfully.`);
-
-      await fetchAllIntegrations();
-    } catch (err) {
-      setError(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Unable to disconnect integration.",
-      );
-    } finally {
-      setDisconnecting(null);
-    }
-  };
-
-  return (
     <div className="relative flex h-dvh w-full flex-col items-center overflow-y-auto bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,#2b2f3a_0%,#191b21_55%,#121317_100%)] text-white">
       <div
         aria-hidden
