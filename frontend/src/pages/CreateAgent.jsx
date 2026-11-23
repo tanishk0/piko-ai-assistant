@@ -172,6 +172,18 @@ const CreateAgent = () => {
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               Create an agent
             </h1>
+
+            <p className="mt-2 text-sm text-zinc-500">
+              Configure your AI agent and define what capabilities it can use.
+            </p>
+          </div>
+          <form
+            onSubmit={handleSubmit}
+            className={`space-y-7 rounded-3xl p-5 sm:p-7 ${darkPanel}`}
+          >
+            <section className="space-y-5">
+              <div>
+                <label
                   htmlFor="agent-name"
                   className="mb-2 block text-xs font-medium text-zinc-300"
                 >
@@ -181,7 +193,7 @@ const CreateAgent = () => {
                   id="agent-name"
                   onChange={(e) => setName(e.target.value)}
                   value={name}
-                  placeholder="eg. Research Assistant"
+                  placeholder="eg. Personal Assistant or Email & Calendar Bot"
                   maxLength={100}
                   required
                   className={`h-11 ${fieldCls}`}
@@ -198,7 +210,7 @@ const CreateAgent = () => {
                   id="instructions"
                   onChange={(e) => setInstructions(e.target.value)}
                   value={instructions}
-                  placeholder="Instructions"
+                  placeholder="eg. Check my emails, manage meetings, and help automate tasks."
                   maxLength={1000}
                   required
                   className={`h-11 ${fieldCls}`}
@@ -209,28 +221,43 @@ const CreateAgent = () => {
                   htmlFor="knowledgeBase"
                   className="mb-2 block text-xs font-medium text-zinc-300"
                 >
-                  Knowledge Base
+                  Knowledge Base (Optional)
                 </label>
                 <Textarea
                   id="knowledgeBase"
                   onChange={(e) => setKnowledgeBase(e.target.value)}
                   value={knowledgeBase}
-                  placeholder="Add knowledge, context you think your agent might need."
+                  placeholder="Add background context, preferences, or rules you want your agent to know."
                   maxLength={1000}
-                  className={`h-40 resize-none ${fieldCls}`}
+                  className={`h-36 resize-none ${fieldCls}`}
                 />
               </div>
             </section>
             <section>
-              <div className="mb-3">
-                <h2 className="text-xs font-medium text-zinc-300">Tools</h2>
-                <p className="mt-1 text-xs text-zinc-500">
-                  Select the capabilities available to your agent.
-                </p>
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xs font-medium text-zinc-300">
+                    Integration Tools
+                  </h2>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Select the capabilities available to your agent.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSelectAll}
+                  className="text-xs text-violet-400 hover:text-violet-300 transition"
+                >
+                  {tools.length === availableTools.length
+                    ? "Deselect All"
+                    : "Select All"}
+                </button>
               </div>
+
               <div className="overflow-hidden rounded-2xl border border-white/10">
                 {availableTools.map((t, i) => {
                   const selected = tools?.includes(t.id);
+                  const Icon = t.icon;
                   return (
                     <button
                       type="button"
@@ -247,15 +274,39 @@ const CreateAgent = () => {
                           : "bg-white/[0.02] hover:bg-white/[0.05]"
                       }`}
                     >
-                      <div>
-                        <p className="text-xs font-medium text-zinc-100">
-                          {t.name}
-                        </p>
-                        <p className="mt-1 text-[11px] text-zinc-500">
-                          {t.description}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`grid size-8 shrink-0 place-items-center rounded-lg border ${
+                            selected
+                              ? "border-violet-400/40 bg-violet-500/20 text-violet-300"
+                              : "border-white/10 bg-white/5 text-zinc-400"
+                          }`}
+                        >
+                          <Icon size={16} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-medium text-zinc-100">
+                              {t.name}
+                            </p>
+                            <span className="rounded-md bg-white/[0.07] px-1.5 py-0.5 text-[10px] text-zinc-400">
+                              {t.category}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-[11px] text-zinc-400">
+                            {t.description}
+                          </p>
+                        </div>
                       </div>
-                      <span>{selected && <Check size={12} />}</span>
+                      <div
+                        className={`grid size-5 shrink-0 place-items-center rounded-md border transition ${
+                          selected
+                            ? "border-violet-500 bg-violet-500 text-white"
+                            : "border-white/20 bg-transparent text-transparent"
+                        }`}
+                      >
+                        <Check size={12} strokeWidth={3} />
+                      </div>
                     </button>
                   );
                 })}
