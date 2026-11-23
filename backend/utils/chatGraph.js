@@ -1,4 +1,4 @@
-import {ChatGroq} from '@langchain/groq';
+import { createLLM } from './llm.js';
 import {
   StateGraph,
   MessagesAnnotation,
@@ -8,12 +8,7 @@ import {MongoClient} from 'mongodb';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const llm = new ChatGroq({
-  model: 'openai/gpt-oss-120b',
-  temperature: 0.3,
-  maxTokens: 500,
-  maxRetries: 2,
-});
+const llm = createLLM({ temperature: 0.2 });
 
 const client = new MongoClient(process.env.MONGODB_URI);
 const checkpointer = new MongoDBSaver({client, dbName: 'langgraph'});
