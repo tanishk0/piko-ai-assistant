@@ -219,167 +219,224 @@ export const instagramCallback = async (req, res) => {
     try {
       decoded = jwt.verify(state, process.env.JWT_SECRET);
     } catch (e) {
-    const {code, state, error} = req.query;
-    if (error) {
-      return res.status (400).json ({
-        message: 'insta auth failed',
-      });
+      return res.redirect(
+        `${frontendUrl}/integrations?instagram=error&message=invalid_oauth_state`
+      );
     }
-    const decoded = jwt.verify (state, process.env.JWT_SECRET);
-    if (decoded.purpose !== 'instagram-oauth' || !decoded.userId) {
-      return res.status (400).json ({
-        message: 'invalid oauth state - instagram',
-      });
-    }
-    const tokenResponse=await axios.get(`https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/oauth/access_token`,{
-      params : {
-      client_id: INSTAGRAM_APP_ID,
-      client_secret: INSTAGRAM_APP_SECRET,
-      redirect_uri: INSTAGRAM_REDIRECT_URI,
-      code,
-    },
-    timeout: 15000
-    })
-    console.log('token response', tokenResponse)
-    const userAccessToken=tokenResponse.data.access_token
-    const assignedAccounts = await axios.get(`https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/me/assigned_instagram_accounts`, {
-      params: {
-        fields: 'id, username',
-        access_token: userAccessToken,
-      },
-      timeout: 15000,
-    })
-    const instagramAccounts=assignedAccounts.data.data
 
+    if (decoded.purpose !== 'instagram-oauth' || !decoded.userId) {
+      return res.redirect(
+        `${frontendUrl}/integrations?instagram=error&message=invalid_oauth_purpose`
+      );
+    }
+
+    const tokenResponse = await axios.get(
+      `https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/oauth/access_token`,
+      {
+        params: {
+          client_id: INSTAGRAM_APP_ID,
+          client_secret: INSTAGRAM_APP_SECRET,
+          redirect_uri: INSTAGRAM_REDIRECT_URI,
+          code,
+        },
+        timeout: 15000,
+      }
+    );
+
+    const userAccessToken = tokenResponse.data.access_token;
+    const assignedAccounts = await axios.get(
+      `https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/me/assigned_instagram_accounts`,
+      {
+        params: {
+          fields: 'id,username',
+          access_token: userAccessToken,
+        },
+        timeout: 15000,
+      }
+    );
+
+    const instagramAccounts = assignedAccounts.data?.data;
     if (!instagramAccounts || instagramAccounts.length === 0) {
       return res.redirect(
-      `${process.env.FRONTEND_URL}/integrations?instagram=error_no_account`
+        `${frontendUrl}/integrations?instagram=error_no_account`
+      );
+    }
+
+    const dynamicAccountId = instagramAccounts[0].id;
+    const profile = await axios.get(
+      `https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/${dynamicAccountId}`,
+      {
+        params: {
+          fields: 'id,username,name',
+          access_token: userAccessToken,
+        },
+        timeout: 15000,
+      }
     );
-  }
-    const dynamicAccountId=instagramAccounts[0].id
-    const profile = await axios.get(`https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/${dynamicAccountId}`, {
-      params: {
-        fields: 'id,username,name',
-        access_token: userAccessToken,
-      },
-      timeout: 15000,
-    })
+
     const filter = {
       userId: decoded.userId,
       provider: 'instagram',
-      providerAccountId: profile.id,
     };
-    let connection = await Integration.findOne (filter).select (
+
+    let connection = await Integration.findOne(filter).select(
       '+tokens.accessToken'
     );
     if (!connection) {
-      connection = new Integration ({
+      connection = new Integration({
         ...filter,
+        providerAccountId: profile.data.id,
         services: [],
         tokens: {},
       });
     }
+
+    connection.providerAccountId = profile.data.id;
     connection.services = [
-      ...new Set ([
-        ...Integration (connection.services || []),
-        'instagram',
-      ]),
+      ...new Set([...(connection.services || []), 'instagram']),
     ];
-    connection.account={
-        ...connection.account?.toObject?.(),
-        username :profile.username,
-        displayName: profile.name || profile.username
-    }
-    connection.scopes= INSTAGRAM_SCOPES
+    connection.account = {
+      ...connection.account?.toObject?.(),
+      username: profile.data.username || '',
+      displayName: profile.data.name || profile.data.username || '',
+    };
+    connection.scopes = INSTAGRAM_SCOPES;
 
-    if(tokens.access_token){
-        connection.tokens.accessToken= encrypt(userAccessToken)
+    if (userAccessToken) {
+      connection.tokens.accessToken = encrypt(userAccessToken);
     }
-    
-    if(tokens.expiry_date){
-      connection.tokens.expiresAt=null
+    if (tokenResponse.data.expires_in) {
+      connection.tokens.expiresAt = new Date(
+        Date.now() + tokenResponse.data.expires_in * 1000
+      );
+    } else {
+      connection.tokens.expiresAt = null;
     }
-    connection.status='connected'
-    connection.connectedAt=new Date()
-    await connection.save()
+    connection.status = 'connected';
+    connection.connectedAt = new Date();
+    await connection.save();
 
-    return res.redirect(`${process.env.FRONTEND_URL}/integrations?instagram=connected`)
+    return res.redirect(`${frontendUrl}/integrations?instagram=connected`);
   } catch (error) {
-      return res.status(500).json({message: `instagram callback error ${error}`}) 
+    console.error('Instagram callback error:', error);
+    const msg =
+      error.response?.data?.error?.message ||
+      error.message ||
+      'instagram_callback_error';
+    return res.redirect(
+      `${frontendUrl}/integrations?instagram=error&message=${encodeURIComponent(
+        msg
+      )}`
+    );
   }
-}
+};
 
-
-export const getIntegrations = async(req, res) => {
+export const getIntegrations = async (req, res) => {
   try {
-    const userId=req.user._id
-    const integrations = await Integration.find({userId, status: "connected"}).select('-tokens')
+    const userId = req.user._id;
+    const integrations = await Integration.find({
+      userId,
+      status: 'connected',
+    }).select('-tokens');
 
-    const googleConnection=integrations.find((item)=>item.provider==='google')
-    const instagramConnection=integrations.find((item)=>item.provider==='instagram')
+    const googleConnection = integrations.find(
+      item => item.provider === 'google'
+    );
+    const instagramConnection = integrations.find(
+      item => item.provider === 'instagram'
+    );
+
+    const isGmailConnected = Boolean(
+      googleConnection?.services?.includes('gmail')
+    );
+    const isCalendarConnected = Boolean(
+      googleConnection?.services?.includes('google_calendar') ||
+        googleConnection?.services?.includes('google_calender')
+    );
+    const isInstagramConnected = Boolean(
+      instagramConnection?.services?.includes('instagram')
+    );
+
     return res.status(200).json({
       success: true,
       integrations: {
         gmail: {
-          connected: googleConnection?.services.includes("gmail") || "false",
-          email: googleConnection?.account.email || null
+          connected: isGmailConnected,
+          email: googleConnection?.account?.email || null,
+        },
+        googleCalendar: {
+          connected: isCalendarConnected,
+          email: googleConnection?.account?.email || null,
+        },
+        google_calendar: {
+          connected: isCalendarConnected,
+          email: googleConnection?.account?.email || null,
         },
         google_calender: {
-          connected: googleConnection?.services.includes("google_calender") || false,
-          email: googleConnection?.account.email || null
+          connected: isCalendarConnected,
+          email: googleConnection?.account?.email || null,
         },
         instagram: {
-          connected: instagramConnection?.services.includes("instagram") ||   false,
-          username: instagramConnection?.account.username || null
+          connected: isInstagramConnected,
+          username: instagramConnection?.account?.username || null,
         },
-
-      }
-    })
+      },
+    });
   } catch (error) {
-    return res.status(500).json({message: `get integrations error ${error}`})
+    return res
+      .status(500)
+      .json({message: `Get integrations error: ${error.message || error}`});
   }
-}
+};
 
-export const disconnectGoogle = async(req, res)=> {
+export const disconnectGoogle = async (req, res) => {
   try {
-    const userId=req.user._id
+    const userId = req.user._id;
     const connection = await Integration.findOne({
-      userId, 
-      provider:"google"
-    })
+      userId,
+      provider: 'google',
+    });
 
-    if(!connection){
-      return res.status(400).json({message: 'google connection not found'})
+    if (!connection) {
+      return res.status(404).json({message: 'Google connection not found'});
     }
 
     await Integration.deleteOne({
       userId,
       _id: connection._id,
-    })
-    return res.status(200).json({message: "Google disconnected succesfully"})
+    });
+    return res.status(200).json({message: 'Google disconnected successfully'});
   } catch (error) {
-    return res.status(500).json({message: "Google disconnection failed ${error"})
+    return res
+      .status(500)
+      .json({message: `Google disconnection failed: ${error.message || error}`});
   }
-}
+};
 
-export const disconnectInstagram = async(req, res)=> {
+export const disconnectInstagram = async (req, res) => {
   try {
-    const userId=req.user._id
+    const userId = req.user._id;
     const connection = await Integration.findOne({
-      userId, 
-      provider:"instagram"
-    })
+      userId,
+      provider: 'instagram',
+    });
 
-    if(!connection){
-      return res.status(400).json({message: 'instagram connection not found'})
+    if (!connection) {
+      return res.status(404).json({message: 'Instagram connection not found'});
     }
 
     await Integration.deleteOne({
       userId,
       _id: connection._id,
-    })
-    return res.status(200).json({message: "Instagram disconnected succesfully"})
+    });
+    return res
+      .status(200)
+      .json({message: 'Instagram disconnected successfully'});
   } catch (error) {
-    return res.status(500).json({message: "Instagram disconnection failed ${error"})
+    return res
+      .status(500)
+      .json({
+        message: `Instagram disconnection failed: ${error.message || error}`,
+      });
   }
-}
+};
