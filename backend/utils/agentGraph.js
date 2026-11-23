@@ -98,120 +98,40 @@ export const createAgentGraph = async (agent, userId) => {
             'Math expression to evaluate, e.g. "125 * 45" or "(1200 / 4) + 50"'
           ),
       }),
-      new DynamicStructuredTool({
-        name: 'calculator',
-        description:
-          'Perform arithmetic computations and mathematical evaluations.',
-        schema: z.object({
-          expression: z
-            .string()
-            .describe(
-              'Math expression to evaluate, e.g. "125 * 45" or "(1200 / 4) + 50"'
-            ),
-        }),
-        func: async ({ expression }) => {
-          try {
-            const sanitized = expression.replace(/[^0-9+\-*/().%^ \t]/g, '');
-            const result = Function(`"use strict"; return (${sanitized})`)();
-            return `Result: ${result}`;
-          } catch (error) {
-            return `Calculation error: ${error.message || error}`;
-          }
-        },
-      })
-    );
-  }
-
-  // 3. Gmail Integration Tools
-  const wantsGmailRead =
-    noFilter ||
-    agentToolsRequested.includes('gmail.read') ||
-    agentToolsRequested.includes('gmail');
-  const wantsGmailSend =
-    noFilter ||
-    agentToolsRequested.includes('gmail.send') ||
-    agentToolsRequested.includes('gmail');
-
-  if (wantsGmailRead || wantsGmailSend) {
-    try {
-      const gmailTools = await createGmailTools(userId);
-      for (const t of gmailTools) {
-        if (
-          (t.name === 'gmail_read' || t.name === 'gmail_get_email_details') &&
-          !wantsGmailRead
-        ) {
-          continue;
+      func: async ({ expression }) => {
+        try {
+          const sanitized = expression.replace(/[^0-9+\-*/().%^ \t]/g, '');
+          const result = Function(`"use strict"; return (${sanitized})`)();
+          return `Result: ${result}`;
+        } catch (error) {
+          return `Calculation error: ${error.message || error}`;
         }
-        if (t.name === 'gmail_send' && !wantsGmailSend) {
-          continue;
-        }
-        finalTools.push(t);
-      }
-    } catch (err) {
-      console.error('Failed to load Gmail tools:', err);
-    }
+      },
+    })
+  );
+
+  // 3. Gmail Tools
+  try {
+    const gmailTools = await createGmailTools(userId);
+    finalTools.push(...gmailTools);
+  } catch (err) {
+    console.error('Failed to load Gmail tools:', err);
   }
 
   // 4. Google Calendar Tools
-  const wantsCalendarRead =
-    noFilter ||
-    agentToolsRequested.includes('calendar.read') ||
-    agentToolsRequested.includes('calendar');
-  const wantsCalendarCreate =
-    noFilter ||
-    agentToolsRequested.includes('calendar.create') ||
-    agentToolsRequested.includes('calendar');
-
-  if (wantsCalendarRead || wantsCalendarCreate) {
-    try {
-      const calendarTools = await createCalendarTools(userId);
-      for (const t of calendarTools) {
-        if (t.name === 'calendar_list_events' && !wantsCalendarRead) {
-          continue;
-        }
-        if (
-          (t.name === 'calendar_create_event' ||
-            t.name === 'calendar_delete_event') &&
-          !wantsCalendarCreate
-        ) {
-          continue;
-        }
-        finalTools.push(t);
-      }
-    } catch (err) {
-      console.error('Failed to load Calendar tools:', err);
-    }
+  try {
+    const calendarTools = await createCalendarTools(userId);
+    finalTools.push(...calendarTools);
+  } catch (err) {
+    console.error('Failed to load Calendar tools:', err);
   }
 
-  // 5. Instagram Integration Tools
-  const wantsInstagramRead =
-    noFilter ||
-    agentToolsRequested.includes('instagram.read') ||
-    agentToolsRequested.includes('instagram');
-  const wantsInstagramPost =
-    noFilter ||
-    agentToolsRequested.includes('instagram.post') ||
-    agentToolsRequested.includes('instagram');
-
-  if (wantsInstagramRead || wantsInstagramPost) {
-    try {
-      const instagramTools = await createInstagramTools(userId);
-      for (const t of instagramTools) {
-        if (
-          (t.name === 'instagram_get_profile' ||
-            t.name === 'instagram_get_recent_posts') &&
-          !wantsInstagramRead
-        ) {
-          continue;
-        }
-        if (t.name === 'instagram_publish_photo' && !wantsInstagramPost) {
-          continue;
-        }
-        finalTools.push(t);
-      }
-    } catch (err) {
-      console.error('Failed to load Instagram tools:', err);
-    }
+  // 5. Instagram Tools
+  try {
+    const instagramTools = await createInstagramTools(userId);
+    finalTools.push(...instagramTools);
+  } catch (err) {
+    console.error('Failed to load Instagram tools:', err);
   }
 
   const llmWithTools =
@@ -245,19 +165,119 @@ ${agent.instructions}
 
 ${agent.knowledgeBase ? `Knowledge Base:\n${agent.knowledgeBase}\n` : ''}
 
-Rules:
-1. Tool Execution: Use available tools to fetch data, schedule events, read/send emails, or interact with Instagram. Never fabricate tool outputs, IDs, or completed actions.
-2. Directness: Be concise, clear, and action-oriented. Present lists, email previews, or event details in well-formatted markdown.`;
+Operational Rules & Safety Policies:
+1. Missing Information & Clarifications:
+   - Always verify that you have all essential details before performing any task.
+   - If any required parameter is missing (e.g. recipient email address, subject, message body, meeting date/time, post image URL, or caption), DO NOT assume, guess, or invent it. Proactively ask the user for the missing information.
+
+2. Action Approval & Confirmation Judgment:
+   - For irreversible, modifying, or external-facing actions (sending emails with gmail_send, scheduling events with calendar_create_event, deleting events with calendar_delete_event, or publishing Instagram posts with instagram_publish_photo):
+     * If the user has NOT confirmed yet, DO NOT call these tools. Instead, present a clear, formatted draft or summary of the proposed action (recipient, subject, body preview, date/time) and ask the user for confirmation.
+     * Once the user has confirmed (e.g. saying "yes", "proceed", "send it", "looks good", "go ahead", or confirming in any natural phrasing), YOU must immediately proceed and execute the tool to complete the action. Do not ask for confirmation again if the user has already approved.
+
+3. Read-Only Tasks:
+   - Safe queries like searching the web, checking inbox emails, viewing upcoming calendar events, or reading Instagram stats can be performed autonomously without pre-confirmation.
+
+4. Search & Tool Efficiency:
+   - Perform at most 2 to 3 targeted searches per user request.
+   - Once you have gathered sufficient information, synthesize your findings and respond directly. Do not repeatedly search in a loop.
+
+5. Output Style:
+   - Be concise, direct, and helpful. Use clean Markdown formatting for email drafts, event schedules, and lists.`;
+
+  const MAX_CONTEXT_MESSAGES = 20;
+  const MAX_TOOL_CALLS_PER_STEP = 3;
+  const MAX_TOOL_CYCLES_PER_TURN = 3;
 
   const chatNode = async (state) => {
-    const recentMessages = (state.messages || [])
-      .slice(-6)
-      .map((message) => limitMessageContext(message));
+    const allMessages = state.messages || [];
 
-    const response = await llmWithTools.invoke([
+    // Count how many tool executions occurred in the current turn (since the latest HumanMessage)
+    let lastHumanIdx = -1;
+    for (let idx = allMessages.length - 1; idx >= 0; idx--) {
+      if (
+        typeof allMessages[idx]._getType === 'function' &&
+        allMessages[idx]._getType() === 'human'
+      ) {
+        lastHumanIdx = idx;
+        break;
+      }
+    }
+
+    const messagesSinceHuman =
+      lastHumanIdx >= 0 ? allMessages.slice(lastHumanIdx) : allMessages;
+    const toolCyclesCount = messagesSinceHuman.filter(
+      (m) => typeof m._getType === 'function' && m._getType() === 'tool'
+    ).length;
+
+    // If tool search budget is reached, invoke plain llm (without tools)
+    // to strictly force a textual synthesis answer and break infinite loops.
+    const budgetReached = toolCyclesCount >= MAX_TOOL_CYCLES_PER_TURN;
+    const activeLlm =
+      budgetReached || finalTools.length === 0 ? llm : llmWithTools;
+
+    // --- Smart context windowing ---
+    // Always preserve the first HumanMessage (the user's original prompt)
+    // plus the most recent messages, so the LLM never forgets the task.
+    let contextMessages;
+
+    if (allMessages.length <= MAX_CONTEXT_MESSAGES) {
+      // Everything fits, no slicing needed
+      contextMessages = allMessages.map((m) => limitMessageContext(m));
+    } else {
+      // Find the first HumanMessage (the user's original prompt)
+      const firstHumanIdx = allMessages.findIndex(
+        (m) => typeof m._getType === 'function' && m._getType() === 'human'
+      );
+
+      const tail = allMessages.slice(-(MAX_CONTEXT_MESSAGES - 1));
+
+      if (firstHumanIdx !== -1 && !tail.includes(allMessages[firstHumanIdx])) {
+        // First human message got sliced off — prepend it
+        contextMessages = [
+          limitMessageContext(allMessages[firstHumanIdx]),
+          ...tail.map((m) => limitMessageContext(m)),
+        ];
+      } else {
+        // First human message is already in the tail
+        contextMessages = tail.map((m) => limitMessageContext(m));
+      }
+    }
+
+    if (budgetReached) {
+      contextMessages.push(
+        new SystemMessage(
+          'Tool execution limit reached. Synthesize and deliver your final comprehensive answer to the user now using the information gathered above.'
+        )
+      );
+    }
+
+    const response = await activeLlm.invoke([
       new SystemMessage(systemPrompt),
-      ...recentMessages,
+      ...contextMessages,
     ]);
+
+    // --- Limit tool calls per step ---
+    // If the LLM emitted more tool calls than allowed, keep only the first N
+    // to prevent TPM explosion from parallel tool calls.
+    if (
+      response.tool_calls &&
+      response.tool_calls.length > MAX_TOOL_CALLS_PER_STEP
+    ) {
+      response.tool_calls = response.tool_calls.slice(
+        0,
+        MAX_TOOL_CALLS_PER_STEP
+      );
+
+      // Also clean up additional_kwargs.tool_calls to stay in sync
+      if (response.additional_kwargs?.tool_calls) {
+        response.additional_kwargs.tool_calls =
+          response.additional_kwargs.tool_calls.slice(
+            0,
+            MAX_TOOL_CALLS_PER_STEP
+          );
+      }
+    }
 
     return {
       messages: [response],
@@ -270,6 +290,7 @@ Rules:
     if (!lastMessage?.tool_calls || lastMessage.tool_calls.length === 0) {
       return '__end__';
     }
+
     return 'tools';
   };
 
