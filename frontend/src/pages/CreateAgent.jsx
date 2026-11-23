@@ -1,6 +1,16 @@
-import { ArrowLeft, Bot, Check, Workflow } from "lucide-react";
+import {
+  ArrowLeft,
+  Bot,
+  Calendar,
+  Check,
+  Globe,
+  Mail,
+  Calculator as CalcIcon,
+  Workflow,
+} from "lucide-react";
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { FaInstagram } from "react-icons/fa";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -14,24 +24,60 @@ const fieldCls =
 
 const availableTools = [
   {
-    id: "calculator",
-    name: "Calculator",
-    description: "Perform mathematical calculations",
-  },
-  {
     id: "web.search",
     name: "Web Search",
-    description: "Search for information on the web",
+    category: "General",
+    description: "Search the web for up-to-date information, news, and research",
+    icon: Globe,
+  },
+  {
+    id: "calculator",
+    name: "Calculator",
+    category: "General",
+    description: "Perform arithmetic computations and mathematical evaluations",
+    icon: CalcIcon,
   },
   {
     id: "gmail.read",
     name: "Read Emails",
-    description: "Read and summarize emails via connected Gmail",
+    category: "Gmail",
+    description: "Search and read messages from your connected Gmail inbox",
+    icon: Mail,
   },
   {
     id: "gmail.send",
-    name: "Send emails",
-    description: "Draft and send emails via connected Gmail",
+    name: "Send Emails",
+    category: "Gmail",
+    description: "Draft and send emails directly through your connected Gmail",
+    icon: Mail,
+  },
+  {
+    id: "calendar.read",
+    name: "View Calendar",
+    category: "Google Calendar",
+    description: "Check upcoming events, meetings, and schedules",
+    icon: Calendar,
+  },
+  {
+    id: "calendar.create",
+    name: "Schedule Events",
+    category: "Google Calendar",
+    description: "Create, schedule, or delete Google Calendar meetings",
+    icon: Calendar,
+  },
+  {
+    id: "instagram.read",
+    name: "Instagram Stats & Posts",
+    category: "Instagram",
+    description: "Check connected Instagram profile statistics and recent media",
+    icon: FaInstagram,
+  },
+  {
+    id: "instagram.post",
+    name: "Publish Instagram Post",
+    category: "Instagram",
+    description: "Publish photo posts with AI-generated captions & hashtags",
+    icon: FaInstagram,
   },
 ];
 
@@ -39,7 +85,14 @@ const CreateAgent = () => {
   const [name, setName] = useState("");
   const [knowledgeBase, setKnowledgeBase] = useState("");
   const [instructions, setInstructions] = useState("");
-  const [tools, setTools] = useState([]);
+  const [tools, setTools] = useState([
+    "web.search",
+    "calculator",
+    "gmail.read",
+    "gmail.send",
+    "calendar.read",
+    "calendar.create",
+  ]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -50,6 +103,15 @@ const CreateAgent = () => {
         ? prevTools.filter((t) => t !== tool)
         : [...prevTools, tool],
     );
+  };
+
+  const handleSelectAll = (e) => {
+    e.preventDefault();
+    if (tools.length === availableTools.length) {
+      setTools([]);
+    } else {
+      setTools(availableTools.map((t) => t.id));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -110,18 +172,6 @@ const CreateAgent = () => {
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               Create an agent
             </h1>
-
-            <p className="mt-2 text-sm text-zinc-500">
-              Configure your AI agent and define what it can do.
-            </p>
-          </div>
-          <form
-            onSubmit={handleSubmit}
-            className={`space-y-7 rounded-3xl p-5 sm:p-7 ${darkPanel}`}
-          >
-            <section className="space-y-5">
-              <div>
-                <label
                   htmlFor="agent-name"
                   className="mb-2 block text-xs font-medium text-zinc-300"
                 >
