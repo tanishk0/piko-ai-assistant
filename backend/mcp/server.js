@@ -7,16 +7,55 @@ import { z } from 'zod';
 import dotenv from 'dotenv';
 import { fileURLToPath } from "node:url"
 import path from "node:path"
+import jwt from "jsonwebtoken"
 const _fileName = fileURLToPath(import.meta.url);
 const dirName = path.dirname(_fileName)
 dotenv.config({
   path: path.resolve(dirName, "../.env")
 });
 import { TavilySearch } from '@langchain/tavily';
+import connectDb from '../config/db.js';
+import Integration from '../models/integration.model.js';
+import { decrypt } from '../config/crypt.js';
+import { googleOAuthclient } from '../config/googleOAuth.js';
 const server = new McpServer({
   name: 'agent-builder',
   version: '1.0.0',
 });
+
+const verifyAuthToken=(token)=>{
+  const payload=jwt.verify(token,process.env.MCP_AUTH_SECRET, {
+    algorithms: ["HS256"],
+    issuer:"automate-backend",
+    audience: "automate-mcp"
+  })
+
+  return payload.sub
+}
+
+const getGoogleOauthClient = async(userId, requiredService) => {
+  await connectDb()
+  const integration = await Integration.findOne({
+    userId,
+    provider:"google",
+    services: requiredService,
+    status:"connected"
+  }).select("+tokens.refreshToken")
+  if(!integration || !integration.tokens?.refreshToken){
+    throw new Error(`Google ${requiredService} is not connected or its refresh token is unavailable.`)
+  }
+
+  const refresh_token = decrypt(integration?.tokens?.refreshToken)
+  const oauthClient = googleOAuthclient.setCredentials(refresh_token)
+  return oauthClient
+}
+
+
+if(!process.env.TAVILY_API_KEY){
+  throw new Error(
+    "TAVILY_API_KEY missing."
+  )
+}
 
 const tavilySearch = new TavilySearch({
   tavilyApiKey: process.env.TAVILY_API_KEY,
@@ -39,7 +78,6 @@ server.registerTool(
       // If no results or an error occurred
       if (!result?.results || result.results.length === 0) {
         return {
-          content: [{ type: 'text', text: 'No relevant search results found.' }],
         };
       }
       // Take only the top 2 results and keep the text concise
