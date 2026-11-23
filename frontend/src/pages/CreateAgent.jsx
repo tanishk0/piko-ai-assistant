@@ -1,16 +1,6 @@
-import {
-  ArrowLeft,
-  Bot,
-  Calendar,
-  Check,
-  Globe,
-  Mail,
-  Calculator as CalcIcon,
-  Workflow,
-} from "lucide-react";
+import { ArrowLeft, Bot, Workflow } from "lucide-react";
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaInstagram } from "react-icons/fa";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -22,97 +12,13 @@ const darkPanel =
 const fieldCls =
   "rounded-xl border-white/10 bg-white/[0.04] text-sm text-white backdrop-blur-xl placeholder:text-zinc-500 focus-visible:border-white/25 focus-visible:ring-0";
 
-const availableTools = [
-  {
-    id: "web.search",
-    name: "Web Search",
-    category: "General",
-    description: "Search the web for up-to-date information, news, and research",
-    icon: Globe,
-  },
-  {
-    id: "calculator",
-    name: "Calculator",
-    category: "General",
-    description: "Perform arithmetic computations and mathematical evaluations",
-    icon: CalcIcon,
-  },
-  {
-    id: "gmail.read",
-    name: "Read Emails",
-    category: "Gmail",
-    description: "Search and read messages from your connected Gmail inbox",
-    icon: Mail,
-  },
-  {
-    id: "gmail.send",
-    name: "Send Emails",
-    category: "Gmail",
-    description: "Draft and send emails directly through your connected Gmail",
-    icon: Mail,
-  },
-  {
-    id: "calendar.read",
-    name: "View Calendar",
-    category: "Google Calendar",
-    description: "Check upcoming events, meetings, and schedules",
-    icon: Calendar,
-  },
-  {
-    id: "calendar.create",
-    name: "Schedule Events",
-    category: "Google Calendar",
-    description: "Create, schedule, or delete Google Calendar meetings",
-    icon: Calendar,
-  },
-  {
-    id: "instagram.read",
-    name: "Instagram Stats & Posts",
-    category: "Instagram",
-    description: "Check connected Instagram profile statistics and recent media",
-    icon: FaInstagram,
-  },
-  {
-    id: "instagram.post",
-    name: "Publish Instagram Post",
-    category: "Instagram",
-    description: "Publish photo posts with AI-generated captions & hashtags",
-    icon: FaInstagram,
-  },
-];
-
 const CreateAgent = () => {
   const [name, setName] = useState("");
   const [knowledgeBase, setKnowledgeBase] = useState("");
   const [instructions, setInstructions] = useState("");
-  const [tools, setTools] = useState([
-    "web.search",
-    "calculator",
-    "gmail.read",
-    "gmail.send",
-    "calendar.read",
-    "calendar.create",
-  ]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-
-  const toggleTool = (tool) => {
-    setTools((prevTools) =>
-      prevTools.includes(tool)
-        ? prevTools.filter((t) => t !== tool)
-        : [...prevTools, tool],
-    );
-  };
-
-  const handleSelectAll = (e) => {
-    e.preventDefault();
-    if (tools.length === availableTools.length) {
-      setTools([]);
-    } else {
-      setTools(availableTools.map((t) => t.id));
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -124,7 +30,6 @@ const CreateAgent = () => {
         name,
         instructions,
         knowledgeBase,
-        tools,
       });
       navigate("/agents");
     } catch (err) {
@@ -172,6 +77,15 @@ const CreateAgent = () => {
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               Create an agent
             </h1>
+
+            <p className="mt-2 text-sm text-zinc-500">
+              Give your agent a name, instructions, and optional context. It
+              will automatically use connected integrations (Gmail, Calendar,
+              Instagram) whenever needed.
+            </p>
+          </div>
+          <form
+            onSubmit={handleSubmit}
 
             <p className="mt-2 text-sm text-zinc-500">
               Configure your AI agent and define what capabilities it can use.
