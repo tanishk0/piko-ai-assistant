@@ -63,7 +63,7 @@ export const agentChat = async (req, res) => {
       },
       {
         configurable: { thread_id: threadId },
-        recursionLimit: 8,
+        recursionLimit: 15,
       }
     );
     const lastMessage = result.messages[result.messages.length - 1]?.content || '';
