@@ -86,13 +86,6 @@ const CreateAgent = () => {
           </div>
           <form
             onSubmit={handleSubmit}
-
-            <p className="mt-2 text-sm text-zinc-500">
-              Configure your AI agent and define what capabilities it can use.
-            </p>
-          </div>
-          <form
-            onSubmit={handleSubmit}
             className={`space-y-7 rounded-3xl p-5 sm:p-7 ${darkPanel}`}
           >
             <section className="space-y-5">
@@ -145,85 +138,6 @@ const CreateAgent = () => {
                   maxLength={1000}
                   className={`h-36 resize-none ${fieldCls}`}
                 />
-              </div>
-            </section>
-            <section>
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xs font-medium text-zinc-300">
-                    Integration Tools
-                  </h2>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    Select the capabilities available to your agent.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSelectAll}
-                  className="text-xs text-violet-400 hover:text-violet-300 transition"
-                >
-                  {tools.length === availableTools.length
-                    ? "Deselect All"
-                    : "Select All"}
-                </button>
-              </div>
-
-              <div className="overflow-hidden rounded-2xl border border-white/10">
-                {availableTools.map((t, i) => {
-                  const selected = tools?.includes(t.id);
-                  const Icon = t.icon;
-                  return (
-                    <button
-                      type="button"
-                      key={t.id}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleTool(t.id);
-                      }}
-                      className={`flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition ${
-                        i !== 0 ? "border-t border-white/[0.08]" : " "
-                      } ${
-                        selected
-                          ? "bg-white/[0.09]"
-                          : "bg-white/[0.02] hover:bg-white/[0.05]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`grid size-8 shrink-0 place-items-center rounded-lg border ${
-                            selected
-                              ? "border-violet-400/40 bg-violet-500/20 text-violet-300"
-                              : "border-white/10 bg-white/5 text-zinc-400"
-                          }`}
-                        >
-                          <Icon size={16} />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs font-medium text-zinc-100">
-                              {t.name}
-                            </p>
-                            <span className="rounded-md bg-white/[0.07] px-1.5 py-0.5 text-[10px] text-zinc-400">
-                              {t.category}
-                            </span>
-                          </div>
-                          <p className="mt-0.5 text-[11px] text-zinc-400">
-                            {t.description}
-                          </p>
-                        </div>
-                      </div>
-                      <div
-                        className={`grid size-5 shrink-0 place-items-center rounded-md border transition ${
-                          selected
-                            ? "border-violet-500 bg-violet-500 text-white"
-                            : "border-white/20 bg-transparent text-transparent"
-                        }`}
-                      >
-                        <Check size={12} strokeWidth={3} />
-                      </div>
-                    </button>
-                  );
-                })}
               </div>
             </section>
 
