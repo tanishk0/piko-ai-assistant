@@ -28,3 +28,33 @@ export const getGoogleAuthClient = async (userId) => {
       process.env.GOOGLE_REDIRECT_URI || 'http://localhost:8000/api/integrations/google/callback'
     );
 
+    oauth2Client.setCredentials({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
+    oauth2Client.on('tokens', async (tokens) => {
+      try {
+        if (tokens.access_token) {
+          googleConn.tokens.accessToken = encrypt(tokens.access_token);
+        }
+        if (tokens.refresh_token) {
+          googleConn.tokens.refreshToken = encrypt(tokens.refresh_token);
+        }
+        if (tokens.expiry_date) {
+          googleConn.tokens.expiresAt = new Date(tokens.expiry_date);
+        }
+        await googleConn.save();
+      } catch (err) {
+        console.error('Error saving auto-refreshed Google tokens:', err);
+      }
+    });
+
+    return { client: oauth2Client, error: null };
+  } catch (err) {
+    return {
+      client: null,
+      error: `Failed to decrypt Google authorization credentials: ${err.message || err}`,
+    };
+  }
+};
