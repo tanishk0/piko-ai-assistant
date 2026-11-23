@@ -1,4 +1,4 @@
-import { ChatGroq } from '@langchain/groq';
+import { createLLM } from './llm.js';
 import {
   StateGraph,
   MessagesAnnotation,
@@ -7,7 +7,7 @@ import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { MongoDBSaver } from '@langchain/langgraph-checkpoint-mongodb';
 import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
-import { SystemMessage } from '@langchain/core/messages';
+import { SystemMessage, ToolMessage } from '@langchain/core/messages';
 import { getMcpTools } from '../mcp/lg-mcp.js';
 import z from 'zod';
 import { DynamicStructuredTool } from '@langchain/core/tools';
@@ -17,11 +17,7 @@ import { createInstagramTools } from '../tools/instagram.tools.js';
 
 dotenv.config();
 
-const llm = new ChatGroq({
-  model: 'openai/gpt-oss-120b',
-  temperature: 0.2,
-  maxRetries: 2,
-});
+const llm = createLLM();
 
 const client = new MongoClient(process.env.MONGODB_URI);
 const checkpointer = new MongoDBSaver({ client, dbName: 'langgraph' });
@@ -30,10 +26,16 @@ const findTool = (tools, names) => {
   return tools.find((tool) => names.includes(tool.name));
 };
 
-const limitMessageContext = (message, maxChars = 2000) => {
+const limitMessageContext = (message) => {
   if (typeof message.content !== 'string') {
     return message;
   }
+
+  // Tool messages: 4000 characters (~1000 tokens)
+  // Other messages: 8000 characters (~2000 tokens)
+  const msgType = typeof message._getType === 'function' ? message._getType() : null;
+  const maxChars = msgType === 'tool' ? 4000 : 8000;
+
   if (message.content.length <= maxChars) {
     return message;
   }
@@ -45,59 +47,57 @@ const limitMessageContext = (message, maxChars = 2000) => {
 };
 
 export const createAgentGraph = async (agent, userId) => {
-  const agentToolsRequested = Array.isArray(agent.tools) ? agent.tools : [];
   const finalTools = [];
-  const noFilter = agentToolsRequested.length === 0;
 
   // 1. Web Search Tool (via MCP)
-  const wantsWebSearch =
-    noFilter ||
-    agentToolsRequested.includes('web.search') ||
-    agentToolsRequested.includes('web_search');
+  try {
+    const mcpTools = await getMcpTools();
+    const webSearchMcpTool = findTool(mcpTools, [
+      'automate_web_search_tool',
+      'web_search_tool',
+      'web_search',
+      'automate_web_search',
+    ]);
 
-  if (wantsWebSearch) {
-    try {
-      const mcpTools = await getMcpTools();
-      const webSearchMcpTool = findTool(mcpTools, [
-        'automate_web_search_tool',
-        'web_search_tool',
-        'web_search',
-        'automate_web_search',
-      ]);
-
-      if (webSearchMcpTool) {
-        finalTools.push(
-          new DynamicStructuredTool({
-            name: 'web_search',
-            description:
-              'Search the web for up-to-date information, news, documentation, and factual queries.',
-            schema: z.object({
-              query: z.string().describe('The search query keyword or phrase'),
-            }),
-            func: async ({ query }) => {
-              try {
-                const result = await webSearchMcpTool.invoke({ query });
-                return typeof result === 'string'
-                  ? result
-                  : JSON.stringify(result);
-              } catch (error) {
-                return `Web search error: ${error.message || error}`;
-              }
-            },
-          })
-        );
-      }
-    } catch (err) {
-      console.error('Failed to load MCP web search tool:', err);
+    if (webSearchMcpTool) {
+      finalTools.push(
+        new DynamicStructuredTool({
+          name: 'web_search',
+          description:
+            'Search the web for up-to-date information, news, documentation, and factual queries.',
+          schema: z.object({
+            query: z.string().describe('The search query keyword or phrase'),
+          }),
+          func: async ({ query }) => {
+            try {
+              const result = await webSearchMcpTool.invoke({ query });
+              return typeof result === 'string'
+                ? result
+                : JSON.stringify(result);
+            } catch (error) {
+              return `Web search error: ${error.message || error}`;
+            }
+          },
+        })
+      );
     }
+  } catch (err) {
+    console.error('Failed to load MCP web search tool:', err);
   }
 
-  // 2. Calculator Tool
-  const wantsCalculator =
-    noFilter || agentToolsRequested.includes('calculator');
-
-  if (wantsCalculator) {
-    finalTools.push(
+  // 2. Calculator
+  finalTools.push(
+    new DynamicStructuredTool({
+      name: 'calculator',
+      description:
+        'Perform arithmetic computations and mathematical evaluations.',
+      schema: z.object({
+        expression: z
+          .string()
+          .describe(
+            'Math expression to evaluate, e.g. "125 * 45" or "(1200 / 4) + 50"'
+          ),
+      }),
       new DynamicStructuredTool({
         name: 'calculator',
         description:
