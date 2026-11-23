@@ -36,36 +36,40 @@ export const getAllAgents = async (req, res) => {
 
     const agents = await Agent.find({
       userId,
-    const userId = req.user._id;
+    }).sort({createdAt: -1});
 
-    const agents = await Agent.find ({
-      userId,
-    });
-
-    return res.status (200).json (agents);
+    return res.status(200).json(agents);
   } catch (error) {
-    return res.status (500).json ({message: 'get all agents error', error});
+    return res.status(500).json({message: error.message || 'Get all agents error'});
   }
 };
 
 export const getAgentById = async (req, res) => {
   try {
     const agentId = req.params.id;
-    const agent = await Agent.findById (agentId);
+    const agent = await Agent.findOne({_id: agentId, userId: req.user._id});
 
-    return res.status (200).json (agent);
+    if (!agent) {
+      return res.status(404).json({message: 'Agent not found'});
+    }
+
+    return res.status(200).json(agent);
   } catch (error) {
-    return res.status (500).json ({message: 'get agent by id error', error});
+    return res.status(500).json({message: error.message || 'Get agent error'});
   }
 };
 
 export const deleteAgent = async (req, res) => {
   try {
     const agentId = req.params.id;
-    const agent = await Agent.findByIdAndDelete (agentId);
+    const agent = await Agent.findOneAndDelete({_id: agentId, userId: req.user._id});
 
-    return res.status (200).json (agent);
+    if (!agent) {
+      return res.status(404).json({message: 'Agent not found'});
+    }
+
+    return res.status(200).json(agent);
   } catch (error) {
-    return res.status (500).json ({message: 'delete agent error', error});
+    return res.status(500).json({message: error.message || 'Delete agent error'});
   }
 };
