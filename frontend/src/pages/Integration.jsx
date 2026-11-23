@@ -157,6 +157,20 @@ const Integration = () => {
       } else {
         throw new Error("Unsupported integration.");
       }
+
+      await fetchAllIntegrations();
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Unable to disconnect integration.",
+      );
+    } finally {
+      setDisconnecting(null);
+    }
+  };
+
+  return (
     <div className="relative flex h-dvh w-full flex-col items-center overflow-y-auto bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,#2b2f3a_0%,#191b21_55%,#121317_100%)] text-white">
       <div
         aria-hidden
@@ -221,9 +235,13 @@ const Integration = () => {
               </p>
             ) : (
               integrationList.map((item) => {
-                const integration = integrations?.[item.id] ?? {};
+                const integration =
+                  integrations?.[item.id] ||
+                  (item.id === "googleCalendar" ? integrations?.["google_calendar"] : {}) ||
+                  {};
                 const connected = Boolean(integration.connected);
                 const Icon = item.icon;
+                const accountDetail = integration.email || integration.username;
 
                 const isConnecting = connecting === item.id;
                 const isDisconnecting = disconnecting === item.id;
@@ -255,6 +273,12 @@ const Integration = () => {
                           <span className="text-xs text-zinc-400">
                             {connected ? "Connected" : "Not connected"}
                           </span>
+
+                          {connected && accountDetail && (
+                            <span className="text-xs text-zinc-500">
+                              ({accountDetail})
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
