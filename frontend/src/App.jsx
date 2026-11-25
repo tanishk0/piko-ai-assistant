@@ -74,6 +74,10 @@ function App() {
           path="/agents/new"
           element={userData ? <CreateAgent /> : <Navigate to="/login" />}
         />
+        <Route
+          path="/pricing"
+          element={userData ? <Pricing /> : <Navigate to="/login" />}
+        />
       </Routes>
     </BrowserRouter>
   );
