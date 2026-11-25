@@ -16,6 +16,8 @@ export function createLLM(overrides = {}) {
         model: model || 'nvidia/llama-3.1-nemotron-70b-instruct',
         temperature,
         maxRetries,
+        timeout: 45000,
+        maxTokens: 2000,
         apiKey: process.env.NVIDIA_API_KEY,
         configuration: {
           baseURL: 'https://integrate.api.nvidia.com/v1',
@@ -27,6 +29,8 @@ export function createLLM(overrides = {}) {
         model: model || 'gpt-4o-mini',
         temperature,
         maxRetries,
+        timeout: 45000,
+        maxTokens: 2000,
         apiKey: process.env.OPENAI_API_KEY,
       });
 
@@ -36,6 +40,8 @@ export function createLLM(overrides = {}) {
         model: model || 'qwen/qwen3-27b',
         temperature,
         maxRetries,
+        timeout: 45000,
+        maxTokens: 2000,
         apiKey: process.env.GROQ_API_KEY,
       });
   }

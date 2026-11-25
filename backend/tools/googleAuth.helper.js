@@ -31,6 +31,7 @@ export const getGoogleAuthClient = async (userId) => {
     oauth2Client.setCredentials({
       access_token: accessToken,
       refresh_token: refreshToken,
+      expiry_date: googleConn.tokens.expiresAt?.getTime(),
     });
 
     oauth2Client.on('tokens', async (tokens) => {

@@ -1,24 +1,10 @@
-import {MCPAdapter} from '@langchain/mcp-adapters';
-import { fileURLToPath } from "node:url"
-import path from "node:path"
-const _fileName=fileURLToPath(import.meta.url);
-const dirName=path.dirname(_fileName)
-const serverPath=path.join(dirName, "server.js")
-const adapter = new MCPAdapter ({
-  servers: {
-    automate:{
-        transport:"stdio",
-        command: process.execPath,
-        args: [serverPath],
-    }
+import { MCPAdapter } from '@langchain/mcp-adapters';
+import { fileURLToPath } from 'node:url';
 
-  },
-});
-
-export const getMcpTools=async()=>{
-  const tools = await adapter.listTools()
-  console.log(tools.map((tool)=>
-    tool.name
-  ));
-  return tools
+const adapter = new MCPAdapter({ servers: { automate: { transport: 'stdio', command: process.execPath, args: [fileURLToPath(new URL('server.js', import.meta.url))], defaultToolTimeout: 25000 } } });
+let pending;
+export function getMcpTools() {
+  if (!pending) pending = adapter.listTools().catch(error => { pending = null; throw error; });
+  return pending;
 }
+export async function closeMcp() { pending = null; await adapter.close(); }

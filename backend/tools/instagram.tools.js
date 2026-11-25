@@ -1,174 +1,50 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import axios from 'axios';
 import z from 'zod';
+import { setTimeout as delay } from 'node:timers/promises';
 import Integration from '../models/integration.model.js';
 import { decrypt } from '../config/crypt.js';
 
-const getInstagramClient = async (userId) => {
-  const instaConn = await Integration.findOne({
-    userId,
-    provider: 'instagram',
-    status: 'connected',
-  }).select('+tokens.accessToken');
-
-  if (!instaConn || !instaConn.tokens?.accessToken) {
-    return {
-      token: null,
-      accountId: null,
-      error: 'Instagram is not connected. Please connect your Instagram account in the Integrations page.',
-    };
-  }
-
-  try {
-    const token = decrypt(instaConn.tokens.accessToken);
-    return {
-      token,
-      accountId: instaConn.providerAccountId,
-      error: null,
-    };
-  } catch (err) {
-    return {
-      token: null,
-      accountId: null,
-      error: `Failed to decrypt Instagram access token: ${err.message || err}`,
-    };
-  }
-};
-
-export const createInstagramTools = async (userId) => {
-  const { token, accountId, error } = await getInstagramClient(userId);
-  const graphVersion = process.env.INSTAGRAM_GRAPH_VERSION || 'v23.0';
-
-  const instagramGetProfileTool = new DynamicStructuredTool({
-    name: 'instagram_get_profile',
-    description:
-      'Fetch profile statistics and details for the connected Instagram account (followers, media count, bio, username).',
-    schema: z.object({}),
-    func: async () => {
-      if (error || !token || !accountId) {
-        return error || 'Instagram is not connected. Please connect Instagram in the Integrations page.';
-      }
-      try {
-        const res = await axios.get(
-          `https://graph.facebook.com/${graphVersion}/${accountId}`,
-          {
-            params: {
-              fields: 'id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url',
-              access_token: token,
-            },
-            timeout: 10000,
-          }
-        );
-
-        const data = res.data;
-        return `Instagram Profile:\n• Username: @${data.username}\n• Name: ${data.name || 'N/A'}\n• Bio: ${data.biography || 'No bio'}\n• Followers: ${data.followers_count ?? 'N/A'}\n• Following: ${data.follows_count ?? 'N/A'}\n• Total Posts: ${data.media_count ?? 'N/A'}`;
-      } catch (err) {
-        return `Failed to fetch Instagram profile: ${err.response?.data?.error?.message || err.message || err}`;
-      }
-    },
-  });
-
-  const instagramGetRecentPostsTool = new DynamicStructuredTool({
-    name: 'instagram_get_recent_posts',
-    description: 'Retrieve recent media posts, captions, like counts, and comments from the connected Instagram account.',
-    schema: z.object({
-      limit: z
-        .number()
-        .optional()
-        .default(5)
-        .describe('Number of recent posts to retrieve (1-10)'),
+export async function createInstagramTools(userId, { onProgress = async () => {} } = {}) {
+  const connection = await Integration.findOne({ userId, provider: 'instagram', status: 'connected' }).select('+tokens.accessToken');
+  if (!connection?.tokens?.accessToken || (connection.tokens.expiresAt && connection.tokens.expiresAt <= new Date())) return [];
+  const token = decrypt(connection.tokens.accessToken);
+  const base = `https://graph.facebook.com/${process.env.INSTAGRAM_GRAPH_VERSION || 'v23.0'}`;
+  const accountId = connection.providerAccountId;
+  const options = config => ({ headers: { Authorization: `Bearer ${token}` }, timeout: 10000, signal: config?.signal });
+  return [
+    new DynamicStructuredTool({
+      name: 'instagram_get_profile', description: 'Read connected Instagram account profile and statistics.', schema: z.object({}),
+      func: async (_, config) => (await axios.get(`${base}/${accountId}`, { ...options(config), params: { fields: 'id,username,name,biography,followers_count,follows_count,media_count' } })).data,
     }),
-    func: async ({ limit = 5 }) => {
-      if (error || !token || !accountId) {
-        return error || 'Instagram is not connected.';
-      }
-      try {
-        const res = await axios.get(
-          `https://graph.facebook.com/${graphVersion}/${accountId}/media`,
-          {
-            params: {
-              fields: 'id,caption,media_type,permalink,timestamp,like_count,comments_count',
-              limit: Math.min(Math.max(limit, 1), 10),
-              access_token: token,
-            },
-            timeout: 10000,
-          }
-        );
-
-        const posts = res.data?.data || [];
-        if (posts.length === 0) {
-          return 'No posts found on this Instagram account.';
-        }
-
-        const formatted = posts.map((post) => {
-          const caption = post.caption ? post.caption.slice(0, 150) : '(No caption)';
-          const date = post.timestamp ? new Date(post.timestamp).toLocaleDateString() : '';
-          return `• Post ID: ${post.id}\n  Date: ${date}\n  Type: ${post.media_type}\n  Likes: ${post.like_count ?? 0} | Comments: ${post.comments_count ?? 0}\n  Caption: ${caption}\n  URL: ${post.permalink || 'N/A'}`;
-        });
-
-        return `Recent Instagram Posts (${posts.length}):\n\n${formatted.join('\n\n')}`;
-      } catch (err) {
-        return `Failed to fetch recent Instagram posts: ${err.response?.data?.error?.message || err.message || err}`;
-      }
-    },
-  });
-
-  const instagramPublishPhotoTool = new DynamicStructuredTool({
-    name: 'instagram_publish_photo',
-    description:
-      'Publish an image post with a caption and hashtags to the connected Instagram account.',
-    schema: z.object({
-      imageUrl: z
-        .string()
-        .url()
-        .describe('Publicly accessible image URL (JPEG/PNG hosted on a public server)'),
-      caption: z
-        .string()
-        .describe('Text caption and hashtags for the Instagram post'),
+    new DynamicStructuredTool({
+      name: 'instagram_get_recent_posts', description: 'Read recent Instagram posts and engagement counts. Use nextCursor for continuation.', schema: z.object({ limit: z.number().int().min(1).max(10).default(5), after: z.string().max(2000).optional() }),
+      func: async ({ limit, after }, config) => {
+        const response = await axios.get(`${base}/${accountId}/media`, { ...options(config), params: { fields: 'id,caption,media_type,permalink,timestamp,like_count,comments_count', limit, after } });
+        return { posts: response.data.data || [], nextCursor: response.data.paging?.next ? response.data.paging?.cursors?.after : null };
+      },
     }),
-    func: async ({ imageUrl, caption }) => {
-      if (error || !token || !accountId) {
-        return error || 'Instagram is not connected. Please connect Instagram in the Integrations page.';
-      }
-      try {
-        // Step 1: Create media container
-        const createRes = await axios.post(
-          `https://graph.facebook.com/${graphVersion}/${accountId}/media`,
-          null,
-          {
-            params: {
-              image_url: imageUrl,
-              caption,
-              access_token: token,
-            },
-            timeout: 15000,
-          }
-        );
-
-        const creationId = createRes.data?.id;
-        if (!creationId) {
-          return 'Failed to initialize Instagram media container.';
+    new DynamicStructuredTool({
+      name: 'instagram_publish_photo', description: 'Propose publishing a publicly hosted JPEG photo with a caption. Requires UI approval.',
+      schema: z.object({ imageUrl: z.url().max(2000).refine(value => new URL(value).protocol === 'https:', 'Use an HTTPS image URL'), caption: z.string().max(2200) }),
+      func: async ({ imageUrl, caption }, config) => {
+        const created = await axios.post(`${base}/${accountId}/media`, { image_url: imageUrl, caption }, options(config));
+        const creationId = created.data.id;
+        if (!creationId) throw new Error('Provider did not return a media container ID.');
+        await onProgress({ creationId, stage: 'container_created' });
+        let ready = false;
+        for (let attempt = 0; attempt < 10; attempt++) {
+          const response = await axios.get(`${base}/${creationId}`, { ...options(config), params: { fields: 'status_code,status' } });
+          if (response.data.status_code === 'FINISHED') { ready = true; break; }
+          if (['ERROR', 'EXPIRED'].includes(response.data.status_code)) throw new Error(`Media container ${creationId}: ${response.data.status || response.data.status_code}`);
+          await delay(1000, undefined, { signal: config?.signal });
         }
-
-        // Step 2: Publish media container
-        const publishRes = await axios.post(
-          `https://graph.facebook.com/${graphVersion}/${accountId}/media_publish`,
-          null,
-          {
-            params: {
-              creation_id: creationId,
-              access_token: token,
-            },
-            timeout: 15000,
-          }
-        );
-
-        return `Post successfully published to Instagram!\n• Post ID: ${publishRes.data?.id}\n• Caption: ${caption.slice(0, 80)}...`;
-      } catch (err) {
-        return `Instagram publish error: ${err.response?.data?.error?.message || err.message || err}`;
-      }
-    },
-  });
-
-  return [instagramGetProfileTool, instagramGetRecentPostsTool, instagramPublishPhotoTool];
-};
+        if (!ready) throw new Error(`Media container ${creationId} is still processing. Inspect its status before creating another post.`);
+        await onProgress({ creationId, stage: 'publishing' });
+        const published = await axios.post(`${base}/${accountId}/media_publish`, { creation_id: creationId }, options(config));
+        await onProgress({ creationId, mediaId: published.data.id, stage: 'published' });
+        return { creationId, mediaId: published.data.id };
+      },
+    }),
+  ];
+}
