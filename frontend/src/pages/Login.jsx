@@ -1,6 +1,5 @@
 import { LoginForm } from "@/components/login-form";
 import { Workflow } from "lucide-react";
-import React from "react";
 
 const Login = () => {
   return (

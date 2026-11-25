@@ -13,8 +13,6 @@ import {
   Field,
   FieldDescription,
   FieldGroup,
-  FieldLabel,
-  FieldSeparator,
 } from "@/components/ui/field";
 import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "@/firebase";

@@ -1,5 +1,5 @@
 import { ArrowLeft, Calendar, Mail, Workflow } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FaInstagram } from "react-icons/fa";
 import {
@@ -57,7 +57,8 @@ const Integration = () => {
   };
 
   useEffect(() => {
-    fetchAllIntegrations();
+    const initialize = async () => {
+      await fetchAllIntegrations();
 
     // Check URL parameters for OAuth redirect feedback
     const params = new URLSearchParams(window.location.search);
@@ -93,6 +94,8 @@ const Integration = () => {
       );
       window.history.replaceState({}, document.title, window.location.pathname);
     }
+    };
+    initialize();
   }, []);
 
   // Connect integration
