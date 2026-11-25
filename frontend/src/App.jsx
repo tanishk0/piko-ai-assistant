@@ -12,6 +12,7 @@ import Home from "./pages/Home";
 import Agents from "./pages/Agents";
 import Integration from "./pages/Integration";
 import CreateAgent from "./pages/CreateAgent";
+import Pricing from "./pages/Pricing";
 import { getAllAgents } from "./features/agent.js";
 
 function App() {
