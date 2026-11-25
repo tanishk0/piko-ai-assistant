@@ -1,5 +1,4 @@
 import {createSlice} from '@reduxjs/toolkit';
-import { setLoading } from './userSlice';
 
 export const agentSlice = createSlice ({
   name: 'agent',
@@ -22,6 +21,7 @@ export const agentSlice = createSlice ({
     setDelete:(state,action)=> {
         const id=action.payload
         state.agents=state.agents.filter((a)=>a?._id!==id)
+        if (state.selectedAgent === id) state.selectedAgent = '';
     }
   },
 });

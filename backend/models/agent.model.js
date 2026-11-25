@@ -10,14 +10,17 @@ const agentSchema = new mongoose.Schema (
     name: {
       type: String,
       required: true,
-      unique: true,
+      trim: true,
+      maxlength: 100,
     },
     knowledgeBase: {
       type: String,
+      maxlength: 12000,
     },
     instructions: {
       type: String,
       required: true,
+      maxlength: 10000,
     },
     tools: [
       {
@@ -27,11 +30,12 @@ const agentSchema = new mongoose.Schema (
     ],
     isActive: {
       type: Boolean,
-      default: 'true',
+      default: true,
     },
   },
   {timestamps: true}
 );
 
+agentSchema.index({ userId: 1, name: 1 }, { unique: true });
 const Agent = mongoose.model ('Agent', agentSchema);
 export default Agent;

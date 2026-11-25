@@ -4,12 +4,14 @@ export const createAgent = async ({
   name,
   knowledgeBase,
   instructions,
+  tools,
 }) => {
   try {
     const {data} = await api.post ('/api/agent/create', {
       name,
       knowledgeBase,
       instructions,
+      tools,
     });
     return data;
   } catch (error) {
@@ -47,3 +49,5 @@ export const deleteAgent = async id => {
     throw error;
   }
 };
+
+export const updateAgentTools = async (id, tools) => (await api.patch(`/api/agent/${id}/tools`, { tools })).data;

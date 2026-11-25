@@ -1,4 +1,5 @@
-import { deleteAgent, getAllAgents } from "@/features/agent.js";
+import { deleteAgent, getAllAgents, updateAgentTools } from "@/features/agent.js";
+import ToolPermissions from '@/components/ToolPermissions.jsx';
 import { Button } from "../components/ui/button";
 import {
   ArrowLeft,
@@ -11,7 +12,7 @@ import {
   Trash,
   Workflow,
 } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { useDispatch, useSelector } from "react-redux";
@@ -23,6 +24,9 @@ const whiteBtn =
   "rounded-xl border-0 bg-white text-zinc-900 hover:bg-zinc-200 hover:text-zinc-900";
 
 const Agents = () => {
+  const [toolDrafts, setToolDrafts] = useState({});
+  const [savingId, setSavingId] = useState('');
+  const [saveError, setSaveError] = useState('');
   const [search, setSearch] = useState("");
   const dispatch = useDispatch();
   const { agents, agentsLoading: loading } = useSelector(
@@ -37,7 +41,7 @@ const Agents = () => {
       agent?.knowledgeBase?.toLowerCase()?.includes(query)
     );
   });
-  const fetchAgents = async () => {
+  const fetchAgents = useCallback(async () => {
     dispatch(setAgentsLoading(true));
     try {
       const data = await getAllAgents();
@@ -47,11 +51,11 @@ const Agents = () => {
       console.log(error);
       dispatch(setAgentsLoading(false));
     }
-  };
+  }, [dispatch]);
 
   useEffect(() => {
     fetchAgents();
-  }, []);
+  }, [fetchAgents]);
   const handleDelete = async (id) => {
     try {
       await deleteAgent(id);
@@ -59,6 +63,14 @@ const Agents = () => {
     } catch (error) {
       console.log(error);
     }
+  };
+  const saveTools = async agent => {
+    setSavingId(agent._id); setSaveError('');
+    try {
+      const updated = await updateAgentTools(agent._id, toolDrafts[agent._id] || agent.tools || []);
+      dispatch(setAgents(agents.map(item => item._id === updated._id ? updated : item)));
+    } catch (error) { setSaveError(error.response?.data?.message || 'Could not save tool permissions'); }
+    finally { setSavingId(''); }
   };
   return (
     <div className="relative flex h-dvh flex-col w-full items-center bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,#2b2f3a_0%,#191b21_55%,#121317_100%)] overflow-y-auto text-white">
@@ -120,6 +132,7 @@ const Agents = () => {
             </div>
             <p className="text-xs text-zinc-500">{agents.length} Agents</p>
           </div>
+          {saveError && <p role="alert" className="mt-4 text-sm text-red-300">{saveError}</p>}
           {loading ? (
             <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-zinc-500">
               <RefreshCcw size={22} className="animate-spin text-zinc-300" />
@@ -157,7 +170,7 @@ const Agents = () => {
                       <Button
                         asChild
                         variant="ghost"
-                        onClick={()=>dispatch(setSelectedAgent(agent.name))}
+                        onClick={()=>dispatch(setSelectedAgent(agent._id))}
                         size="sm"
                         className={
                           "h-8 gap-1.5 rounded-lg text-zinc-300 hover:bg-white/10 hover:text-white"
@@ -172,6 +185,13 @@ const Agents = () => {
                         </Link>
                       </Button>
                     </div>
+                    <details className="mt-4 text-sm text-zinc-300">
+                      <summary className="cursor-pointer">Tool permissions</summary>
+                      <div className="mt-3 space-y-3">
+                        <ToolPermissions value={toolDrafts[agentId] || agent.tools || []} onChange={value => setToolDrafts(prev => ({ ...prev, [agentId]: value }))} disabled={Boolean(savingId)} />
+                        <Button disabled={Boolean(savingId)} onClick={() => saveTools(agent)}>Save permissions</Button>
+                      </div>
+                    </details>
                   </div>
                 );
               })}

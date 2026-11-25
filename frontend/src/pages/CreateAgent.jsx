@@ -1,10 +1,11 @@
 import { ArrowLeft, Bot, Workflow } from "lucide-react";
-import React, { useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { createAgent } from "@/features/agent.js";
+import ToolPermissions from '@/components/ToolPermissions.jsx';
 
 const darkPanel =
   "border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.35), inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl";
@@ -13,6 +14,7 @@ const fieldCls =
   "rounded-xl border-white/10 bg-white/[0.04] text-sm text-white backdrop-blur-xl placeholder:text-zinc-500 focus-visible:border-white/25 focus-visible:ring-0";
 
 const CreateAgent = () => {
+  const [tools, setTools] = useState(['web_search', 'calculator']);
   const [name, setName] = useState("");
   const [knowledgeBase, setKnowledgeBase] = useState("");
   const [instructions, setInstructions] = useState("");
@@ -30,6 +32,7 @@ const CreateAgent = () => {
         name,
         instructions,
         knowledgeBase,
+        tools,
       });
       navigate("/agents");
     } catch (err) {
@@ -80,14 +83,14 @@ const CreateAgent = () => {
 
             <p className="mt-2 text-sm text-zinc-500">
               Give your agent a name, instructions, and optional context. It
-              will automatically use connected integrations (Gmail, Calendar,
-              Instagram) whenever needed.
+              can use the tools you enable below when their integrations are connected.
             </p>
           </div>
           <form
             onSubmit={handleSubmit}
             className={`space-y-7 rounded-3xl p-5 sm:p-7 ${darkPanel}`}
           >
+            <ToolPermissions value={tools} onChange={setTools} disabled={loading} />
             <section className="space-y-5">
               <div>
                 <label

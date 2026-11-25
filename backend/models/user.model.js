@@ -21,6 +21,12 @@ const userSchema = new mongoose.Schema({
     profilePicture: {
         type: String,
         default: ""
+    },
+    creditReservations: { type: [String], default: [], select: false },
+    credits:{
+        type: Number,
+        default: 100,
+        min: 0,
     }
 },{timestamps: true})
 

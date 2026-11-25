@@ -1,7 +1,6 @@
 import {
   ArrowUp,
   Bot,
-  BotIcon,
   Check,
   ChevronDown,
   ImagePlus,
@@ -9,12 +8,11 @@ import {
   LogOut,
   PlusIcon,
   Settings2,
-  User,
   UserRound,
   Workflow,
   WorkflowIcon,
 } from "lucide-react";
-import React, { useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +20,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -32,17 +29,17 @@ import { logout } from "@/features/auth";
 import { setUserData } from "@/redux/userSlice";
 import { Textarea } from "@/components/ui/textarea";
 import { setSelectedAgent } from "@/redux/agentSlice";
-import { agentChat, chat } from "@/features/chat.js";
+import { useConversation } from "@/features/useConversation.js";
 
 const darkPanel =
   "border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.35), inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl";
 
-const Home = () => {
+const HomeSession = () => {
   const [logoutLoading, setLogoutLoading] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [messages, setMessages] = useState([]);
   const { userData } = useSelector((state) => state.user);
   const { agents, selectedAgent } = useSelector((state) => state.agent);
+  const selectedName = agents.find(agent => agent._id === selectedAgent)?.name;
+  const { messages, actions, sending, busy, historyUnavailable, error, submit, decide, newChat, retryRequest } = useConversation(userData?._id, selectedAgent);
   const dispatch = useDispatch();
   const [message, setMessage] = useState("");
 
@@ -56,53 +53,9 @@ const Home = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const trimmed = message.trim();
-    if (!trimmed || sending) return;
-
+    if (!trimmed || sending || busy || historyUnavailable) return;
     setMessage("");
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "user",
-        content: trimmed,
-      },
-    ]);
-    setSending(true);
-
-    try {
-      let res;
-      if (!selectedAgent) {
-        res = await chat(trimmed);
-      } else {
-        res = await agentChat(trimmed, selectedAgent);
-      }
-
-      const replyContent =
-        res?.aiResponse ||
-        res?.response?.data?.message ||
-        res?.message ||
-        "Something went wrong";
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: replyContent,
-        },
-      ]);
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            err?.response?.data?.message ||
-            err?.message ||
-            "Failed to get a response.",
-        },
-      ]);
-    } finally {
-      setSending(false);
-    }
+    await submit(trimmed);
   };
 
   const menuContent =
@@ -231,6 +184,9 @@ const Home = () => {
 
         <main className="flex min-h-0 flex-1 flex-col">
           <section className="flex min-h-0 flex-1 flex-col">
+            <div className="mx-auto flex w-full max-w-3xl justify-end px-4">
+              <Button variant="ghost" disabled={sending} onClick={newChat}>New chat</Button>
+            </div>
             <div className={`min-h-0 flex-1 overflow-y-auto`}>
               <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-5 px-4 py-8 sm:px-6">
                 {messages.length === 0 && (
@@ -273,6 +229,23 @@ const Home = () => {
                   </div>
                 ))}
 
+                {actions.map(action => (
+                  <div key={action.id} className="rounded-xl border border-white/15 p-4 text-sm text-zinc-200">
+                    <p className="font-medium">{action.tool.replaceAll('_', ' ')} ? {action.status}</p>
+                    <pre className="my-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(action.args, null, 2)}</pre>
+                    {action.result && <pre className="mb-3 whitespace-pre-wrap break-words text-xs">{JSON.stringify(action.result, null, 2)}</pre>}
+                    {action.status === 'pending' && new Date(action.expiresAt) > new Date() && (
+                      <div className="flex gap-3">
+                        <Button disabled={sending || busy} onClick={() => decide(action, 'approve')}>Approve action</Button>
+                        <Button variant="outline" disabled={sending || busy} onClick={() => decide(action, 'reject')}>Reject</Button>
+                      </div>
+                    )}
+                    {action.status === 'pending' && new Date(action.expiresAt) <= new Date() && <p>Approval expired. Request a new proposal.</p>}
+                    {['executing', 'unknown'].includes(action.status) && <p>Check the connected service before requesting this action again.</p>}
+                  </div>
+                ))}
+                {busy && <p className="text-sm text-amber-300">A request is active. Refresh to check its result.</p>}
+                {error && <div role="alert" className="text-sm text-red-300">{error} {retryRequest && <Button disabled={sending} onClick={retryRequest}>Retry request</Button>}</div>}
                 {sending && (
                   <div className="flex items-center gap-2 text-xs text-zinc-400">
                     <Loader2 size={16} className="animate-spin text-zinc-300" />
@@ -287,6 +260,7 @@ const Home = () => {
                 className={`mx-auto w-full max-w-2xl rounded-2xl p-3 transition-colors focus-within:border-white/25 ${darkPanel}`}
               >
                 <Textarea
+                  maxLength={12000}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyDown={(e) => {
@@ -297,7 +271,7 @@ const Home = () => {
                   }}
                   placeholder={
                     selectedAgent
-                      ? `Message ${selectedAgent}...`
+                      ? `Message ${selectedName || "agent"}...`
                       : "Ask me anything..."
                   }
                   className={`min-h-20 resize-none border-0 !bg-transparent px-2 py-1.5 text-sm text-white shadow-none placeholder:text-zinc-500 focus-visible:ring-0`}
@@ -322,7 +296,7 @@ const Home = () => {
                         >
                           <Bot size={14} />
                           <span className="truncate">
-                            {selectedAgent || "No agent"}
+                            {selectedName || "No agent"}
                           </span>
                           <ChevronDown size={14} />
                         </Button>
@@ -356,7 +330,7 @@ const Home = () => {
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.preventDefault();
-                              dispatch(setSelectedAgent(agent.name));
+                              dispatch(setSelectedAgent(agent._id));
                             }}
                             key={index}
                             className={`cursor-pointer gap-2`}
@@ -366,7 +340,7 @@ const Home = () => {
                               className="shrink-0 text-violet-400"
                             />
                             <span className="truncate">{agent?.name}</span>
-                            {selectedAgent === agent?.name && (
+                            {selectedAgent === agent?._id && (
                               <Check size={14} />
                             )}
                           </DropdownMenuItem>
@@ -386,7 +360,7 @@ const Home = () => {
 
                   <div className="flex items-center gap-2">
                     <Button
-                      disabled={!message.trim() || sending}
+                      disabled={!message.trim() || sending || busy || historyUnavailable}
                       type="submit"
                       size="icon"
                       aria-label="Send message"
@@ -405,4 +379,8 @@ const Home = () => {
   );
 };
 
-export default Home;
+export default function Home() {
+  const { userData } = useSelector(state => state.user);
+  const { selectedAgent } = useSelector(state => state.agent);
+  return <HomeSession key={`${userData?._id}:${selectedAgent}`} />;
+}
