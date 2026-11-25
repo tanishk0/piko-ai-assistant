@@ -1,13 +1,15 @@
 import {
   ArrowLeft,
+  Check,
+  Crown,
   Sparkles,
+  Users,
   Workflow,
   Zap,
-  Crown,
-  Users,
 } from "lucide-react";
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 const plans = [
   {
@@ -121,6 +123,105 @@ function Pricing() {
               more capacity.
             </p>
           </div>
+
+          <div className="grid items-stretch gap-6 pt-2 md:grid-cols-3">
+            {plans.map((plan) => {
+              const Icon = plan.icon;
+              const isSelected = selectedPlan === plan.id;
+
+              return (
+                <div
+                  key={plan.id}
+                  className={`relative flex flex-col justify-between overflow-hidden rounded-3xl border p-7 backdrop-blur-xl transition-all duration-200 ${
+                    plan.popular
+                      ? "border-violet-400/35 bg-white/[0.06] shadow-[0_24px_70px_rgba(124,58,237,0.18),inset_0_1px_0_rgba(255,255,255,0.1)] md:-translate-y-1.5"
+                      : "border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-white/20"
+                  }`}
+                >
+                  {plan.gradient && (
+                    <div
+                      aria-hidden
+                      className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${plan.gradient} opacity-50`}
+                    />
+                  )}
+
+                  <div className="relative z-10">
+                    <div className="flex items-start justify-between gap-3">
+                      <div
+                        className={`grid size-11 place-items-center rounded-2xl border ${plan.iconBg} ${plan.accent}`}
+                      >
+                        <Icon size={20} />
+                      </div>
+
+                      {plan.popular && (
+                        <span className="rounded-full border border-violet-400/30 bg-violet-500/20 px-3 py-1 text-[11px] font-medium tracking-wide text-violet-200">
+                          Most Popular
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-5">
+                      <h2 className="text-xl font-semibold tracking-tight text-white">
+                        {plan.name}
+                      </h2>
+                      <p className="mt-1.5 text-sm text-zinc-400">
+                        {plan.description}
+                      </p>
+                    </div>
+
+                    <div className="mt-6 flex items-baseline gap-1.5 border-b border-white/10 pb-6">
+                      <span className="text-4xl font-semibold tracking-tight text-white">
+                        {plan.price}
+                      </span>
+                      <span className="text-xs text-zinc-400">
+                        {plan.period}
+                      </span>
+                    </div>
+
+                    <div className="mt-5 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-300">
+                      <Sparkles size={13} className={plan.accent} />
+                      <span>{plan.credits}</span>
+                    </div>
+
+                    <ul className="mt-6 space-y-3">
+                      {plan.features.map((feature) => (
+                        <li
+                          key={feature}
+                          className="flex items-center gap-2.5 text-sm text-zinc-300"
+                        >
+                          <span
+                            className={`grid size-5 shrink-0 place-items-center rounded-full bg-white/[0.06] ${plan.accent}`}
+                          >
+                            <Check size={12} />
+                          </span>
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="relative z-10 mt-8">
+                    <Button
+                      type="button"
+                      disabled={plan.disabled}
+                      onClick={() => setSelectedPlan(plan.id)}
+                      className={`h-11 w-full rounded-xl text-sm font-medium transition ${
+                        plan.disabled
+                          ? "cursor-not-allowed border border-white/10 bg-white/[0.05] text-zinc-400 hover:bg-white/[0.05]"
+                          : plan.popular
+                            ? "border-0 bg-white text-zinc-900 hover:bg-zinc-200"
+                            : "border border-white/15 bg-white/[0.08] text-white hover:bg-white/[0.14]"
+                      }`}
+                    >
+                      {isSelected ? `${plan.name} selected` : plan.buttonText}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          
         </main>
       </div>
     </div>
