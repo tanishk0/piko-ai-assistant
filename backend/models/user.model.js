@@ -23,6 +23,9 @@ const userSchema = new mongoose.Schema({
         default: ""
     },
     creditReservations: { type: [String], default: [], select: false },
+    billingCreditsApplied: { type: [String], default: [], select: false },
+    billingRefunds: { type: Map, of: Number, default: {}, select: false },
+    billingDebt: { type: Number, default: 0, min: 0 },
     credits:{
         type: Number,
         default: 100,

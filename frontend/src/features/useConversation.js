@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { chat, agentChat, getChatHistory, decideChatAction } from './chat.js';
+import { useDispatch } from 'react-redux';
+import { setCreditBalance } from '@/redux/userSlice.js';
+import api from '@/api';
 
 export function useConversation(userId, agentId) {
+  const dispatch = useDispatch();
   const storageKey = `automate-conversation:${userId}:${agentId || 'default'}`;
   const [conversationId, setConversationId] = useState(() => {
     const saved = localStorage.getItem(storageKey);
@@ -39,6 +43,8 @@ export function useConversation(userId, agentId) {
       setMessages(prev => [...prev, { role: 'assistant', content: response.aiResponse, requestId: input.requestId }]);
       setActions(prev => [...prev, ...(response.actions || []).filter(a => !prev.some(p => p.id === a.id))]);
       setRetry(null);
+      // Refresh the authoritative balance, including any concurrent renewal.
+      api.get('/api/auth/me').then(({ data }) => dispatch(setCreditBalance(data))).catch(() => {});
     } catch (err) {
       setError(err.response?.data?.message || 'Connection lost. Retry uses the same request ID to avoid duplicate execution.');
       setRetry(!err.response || err.response.status === 409 ? input : null);

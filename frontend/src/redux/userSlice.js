@@ -16,11 +16,17 @@ export const userSlice = createSlice({
     },
     setLoading: (state, action) => {
         state.loading = action.payload
+    },
+    setCreditBalance: (state, action) => {
+        if (state.userData) {
+            state.userData.credits = action.payload.credits;
+            if (action.payload.billingDebt !== undefined) state.userData.billingDebt = action.payload.billingDebt;
+        }
     }
   }
 })
 
 // Action creators are generated for each case reducer function
-export const { setUserData, setLoading } = userSlice.actions
+export const { setUserData, setLoading, setCreditBalance } = userSlice.actions
 
 export default userSlice.reducer

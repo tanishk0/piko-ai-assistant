@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import Login from "../src/pages/Login";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { me } from "./features/auth.js";
@@ -18,6 +18,7 @@ import { getAllAgents } from "./features/agent.js";
 function App() {
   const dispatch = useDispatch();
   const { userData, loading } = useSelector((state) => state.user);
+  const userId = userData?._id;
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -35,7 +36,7 @@ function App() {
 
   useEffect(() => {
     const fetchAgents = async () => {
-      if (!userData) return;
+      if (!userId) return;
       dispatch(setAgentsLoading(true));
       try {
         const data = await getAllAgents();
@@ -47,10 +48,10 @@ function App() {
       }
     };
 
-    if (userData) {
+    if (userId) {
       fetchAgents();
     }
-  }, [userData, dispatch]);
+  }, [userId, dispatch]);
 
   if (loading) return <div>Loading...</div>;
 

@@ -12,6 +12,7 @@ export const deductCredits = async ({ userId, credits, reservationId }) => {
     const user = await User.findOneAndUpdate({
         _id: userId,
         credits: { $gte: credits },
+        billingDebt: { $not: { $gt: 0 } },
         ...(reservationId ? { creditReservations: { $ne: reservationId } } : {}),
     },
         {
@@ -32,7 +33,7 @@ export const deductCredits = async ({ userId, credits, reservationId }) => {
             throw new Error("User not found")
         }
 
-        throw Object.assign(new Error("Insufficient credits"), { status: 402 })
+        throw Object.assign(new Error("Insufficient available credits or an unsettled refund balance. Open Pricing & billing to review your balance."), { status: 402 })
     }
     return {
         success: true,

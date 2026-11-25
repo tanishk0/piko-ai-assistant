@@ -119,6 +119,11 @@ const HomeSession = () => {
                       <Settings2 /> Integrations
                     </Link>
                   </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link to="/pricing" className="flex items-center gap-2.5">
+                      <Workflow size={16} /> Pricing & billing
+                    </Link>
+                  </DropdownMenuItem>
                 </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -158,6 +163,7 @@ const HomeSession = () => {
                     <p className="truncate text-xs">
                       {userData?.email || "email"}
                     </p>
+                    <Link to="/pricing" className="mt-2 block text-xs text-violet-300">{(userData?.credits ?? 0).toLocaleString()} credits · Manage billing</Link>
                   </div>
                 </div>
                 <DropdownMenuGroup>

@@ -7,77 +7,112 @@ import {
   Workflow,
   Zap,
 } from "lucide-react";
-import React, { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useDispatch, useSelector } from 'react-redux';
+import { setCreditBalance } from '@/redux/userSlice.js';
+import { getBilling, createSubscription, verifySubscription, refreshBilling, cancelSubscription, openSubscriptionCheckout } from '@/features/billing.js';
 
-const plans = [
-  {
-    id: "starter",
-    name: "Starter",
-    description: "Try and explore possibilities",
-    price: "Free",
-    period: "forever",
-    credits: "100 free credits",
-    features: [
-      "100 free credits",
-      "Basic AI chat",
-      "Explore AI Agents",
-      "Standard access",
-    ],
-    icon: Zap,
-    buttonText: "Current plan",
-    disabled: true,
-    accent: "text-zinc-300",
-    iconBg: "bg-white/[0.06] border-white/10",
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    description: "For heavy users and maximum flexibility",
-    price: "₹799",
-    period: "/ month",
-    credits: "3,000 credits / month",
-    popular: true,
-    features: [
-      "3,000 credits / month",
-      "Best AI models",
-      "Full agent access",
-      "Priority support",
-      "Custom integrations",
-    ],
-    icon: Crown,
-    buttonText: "Choose Pro",
-    disabled: false,
-    accent: "text-violet-300",
-    iconBg: "bg-violet-500/15 border-violet-400/25",
-    gradient: "from-purple-500/15 via-violet-500/5 to-pink-500/15",
-  },
-  {
-    id: "team",
-    name: "Teams",
-    description: "For growing teams and increased usage",
-    price: "₹999",
-    period: "/ seat / month",
-    credits: "5,000 credits / month",
-    features: [
-      "5,000 credits / month",
-      "Advanced AI chat models",
-      "Access to premium agents",
-      "Integration capabilities",
-      "Usage analytics",
-    ],
-    icon: Users,
-    buttonText: "Choose Teams",
-    disabled: false,
-    accent: "text-blue-300",
-    iconBg: "bg-blue-500/15 border-blue-400/25",
-    gradient: "from-blue-500/15 via-indigo-500/5 to-violet-500/15",
-  },
+const cards = [
+  { id: 'starter', name: 'Starter', description: 'Try the app with a free allowance', icon: Zap, accent: 'text-zinc-300', iconBg: 'bg-white/[0.06] border-white/10' },
+  { id: 'pro', name: 'Pro', description: 'For everyday agents and automation', icon: Crown, popular: true, accent: 'text-violet-300', iconBg: 'bg-violet-500/15 border-violet-400/25', gradient: 'from-purple-500/15 via-violet-500/5 to-pink-500/15' },
+  { id: 'team', name: 'Teams', description: 'More capacity for larger workflows', icon: Users, accent: 'text-blue-300', iconBg: 'bg-blue-500/15 border-blue-400/25', gradient: 'from-blue-500/15 via-indigo-500/5 to-violet-500/15' },
 ];
+const money = amount => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount / 100);
+const formatDate = value => value ? new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(new Date(value)) : 'Pending';
 
 function Pricing() {
-  const [selectedPlan, setSelectedPlan] = useState(null);
+  const { userData } = useSelector(state => state.user);
+  const dispatch = useDispatch();
+  const [billing, setBilling] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const gate = useRef(false);
+  const requests = useRef({});
+  const verificationKey = 'automate-billing-verification:' + userData._id;
+  const applyBilling = useCallback(data => { setBilling(data); dispatch(setCreditBalance(data.user)); }, [dispatch]);
+  useEffect(() => {
+    const controller = new AbortController();
+    async function load() {
+      try {
+        const initial = await getBilling(controller.signal);
+        if (controller.signal.aborted) return;
+        applyBilling(initial);
+        const pending = sessionStorage.getItem(verificationKey);
+        if (pending && initial.configured) {
+          const verified = await verifySubscription(JSON.parse(pending));
+          if (controller.signal.aborted) return;
+          applyBilling(verified); sessionStorage.removeItem(verificationKey);
+          setNotice(verified.paymentConfirmed ? 'Payment confirmed. Your credit balance is updated.' : 'Subscription authorised. Credits will appear after the monthly charge is captured.');
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) setError(err.response?.data?.message || 'Could not load billing. Use Refresh billing to check your payment status.');
+      } finally { if (!controller.signal.aborted) setLoading(false); }
+    }
+    load();
+    return () => controller.abort();
+  }, [applyBilling, verificationKey]);
+  async function purchase(plan) {
+    if (gate.current) return;
+    gate.current = true; setBusy(plan.id); setError(''); setNotice('');
+    try {
+      const pending = sessionStorage.getItem(verificationKey);
+      if (pending) {
+        const verified = await verifySubscription(JSON.parse(pending));
+        applyBilling(verified); sessionStorage.removeItem(verificationKey);
+        setNotice(verified.paymentConfirmed ? 'Payment confirmed. Your credit balance is updated.' : 'Subscription authorised. Credits will appear after the monthly charge is captured.');
+        return;
+      }
+      requests.current[plan.id] ||= crypto.randomUUID();
+      const subscription = await createSubscription(plan.id, requests.current[plan.id]);
+      const result = await openSubscriptionCheckout(subscription, userData);
+      if (!result) { setNotice('Checkout closed. Resume the pending checkout or discard it below.'); applyBilling(await getBilling()); return; }
+      const payload = { razorpay_subscription_id: result.razorpay_subscription_id, razorpay_payment_id: result.razorpay_payment_id, razorpay_signature: result.razorpay_signature };
+      sessionStorage.setItem(verificationKey, JSON.stringify(payload));
+      const verified = await verifySubscription(payload);
+      applyBilling(verified); sessionStorage.removeItem(verificationKey); delete requests.current[plan.id];
+      setNotice(verified.paymentConfirmed ? 'Payment confirmed. Your credit balance is updated.' : 'Subscription authorised. Credits will appear after the monthly charge is captured.');
+    } catch (err) {
+      if (err.response) delete requests.current[plan.id];
+      if (err instanceof SyntaxError || [400, 404].includes(err.response?.status)) sessionStorage.removeItem(verificationKey);
+      setError(err.response?.data?.message || err.message || 'Checkout could not complete. Refresh billing before trying again.');
+    }
+    finally { gate.current = false; setBusy(''); }
+  }
+  async function refresh() {
+    if (gate.current) return;
+    gate.current = true; setBusy('refresh'); setError('');
+    try {
+      const data = await refreshBilling(); applyBilling(data);
+      if (data.subscription?.paidCount > 0) sessionStorage.removeItem(verificationKey);
+      setNotice('Billing and credit balance refreshed.');
+    } catch (err) { setError(err.response?.data?.message || 'Could not refresh billing.'); }
+    finally { gate.current = false; setBusy(''); setLoading(false); }
+  }
+  async function cancel() {
+    if (gate.current) return;
+    gate.current = true; setBusy('cancel'); setError('');
+    try {
+      const data = await cancelSubscription(); applyBilling(data); setConfirmCancel(false); requests.current = {};
+      setNotice(data.subscription?.cancelAtPeriodEnd ? 'Renewal cancelled. Your paid credits stay available.' : 'Subscription cancelled. Your paid credits stay available.');
+    } catch (err) { setError(err.response?.data?.message || 'Could not cancel. Refresh billing to confirm its status.'); }
+    finally { gate.current = false; setBusy(''); }
+  }
+  const subscription = billing?.subscription;
+  const plans = cards.map(card => {
+    const paid = billing?.plans.find(plan => plan.id === card.id);
+    const unavailable = subscription?.open && !(subscription.canResumeCheckout && subscription.plan === card.id);
+    return { ...card, price: card.id === 'starter' ? 'Free' : paid ? money(paid.amount) : '?', period: card.id === 'starter' ? 'once on signup' : '/ month',
+      credits: card.id === 'starter' ? '100 signup credits' : paid ? paid.credits.toLocaleString() + ' credits / month' : 'Monthly credits',
+      features: card.id === 'starter' ? ['100 credits on signup', 'AI chat and custom agents', 'Connect your integrations'] : [(paid?.credits.toLocaleString() || 'Monthly') + ' credits each paid month', 'AI chat and custom agents', 'Connected integration tools', 'Unused credits roll over', 'Cancel future renewals anytime'],
+      disabled: card.id === 'starter' || loading || Boolean(busy) || !billing?.configured || unavailable,
+      buttonText: card.id === 'starter' ? 'Included on signup' : busy === card.id ? 'Opening checkout?' : subscription?.open && subscription.plan === card.id ? subscription.canResumeCheckout ? 'Resume checkout' : 'Current subscription' : unavailable ? 'Manage current subscription first' : 'Subscribe to ' + card.name,
+    };
+  });
 
   return (
     <div className="relative flex min-h-dvh w-full flex-col items-center overflow-y-auto bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,#2b2f3a_0%,#191b21_55%,#121317_100%)] text-white">
@@ -124,10 +159,21 @@ function Pricing() {
             </p>
           </div>
 
+          <div className="mb-6 flex justify-end">
+            <button
+              type="button"
+              className="rounded-xl border border-white/20 bg-zinc-800 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 disabled:cursor-not-allowed disabled:text-zinc-400"
+              disabled={loading || Boolean(busy)}
+              onClick={refresh}
+            >
+              {busy === 'refresh' ? 'Refreshing…' : 'Refresh billing'}
+            </button>
+          </div>
+          {notice && <p role="status" className="mb-4 text-sm text-emerald-300">{notice}</p>}
+          {error && <p role="alert" className="mb-4 text-sm text-red-300">{error}</p>}
           <div className="grid items-stretch gap-6 pt-2 md:grid-cols-3">
             {plans.map((plan) => {
               const Icon = plan.icon;
-              const isSelected = selectedPlan === plan.id;
 
               return (
                 <div
@@ -204,7 +250,7 @@ function Pricing() {
                     <Button
                       type="button"
                       disabled={plan.disabled}
-                      onClick={() => setSelectedPlan(plan.id)}
+                      onClick={() => purchase(plan)}
                       className={`h-11 w-full rounded-xl text-sm font-medium transition ${
                         plan.disabled
                           ? "cursor-not-allowed border border-white/10 bg-white/[0.05] text-zinc-400 hover:bg-white/[0.05]"
@@ -213,15 +259,32 @@ function Pricing() {
                             : "border border-white/15 bg-white/[0.08] text-white hover:bg-white/[0.14]"
                       }`}
                     >
-                      {isSelected ? `${plan.name} selected` : plan.buttonText}
+                      {plan.buttonText}
                     </Button>
                   </div>
                 </div>
               );
             })}
           </div>
-
-          
+          <p className="mt-7 text-center text-xs leading-6 text-zinc-400">Paid plans renew monthly until cancelled. Credits are added only after a successful monthly charge and unused credits roll over. Both paid plans fund this account; shared workspaces and additional team seats are not included. To change plans, cancel the current subscription and wait for it to end.</p>
+          {subscription && <section className="mt-8 text-sm text-zinc-300" aria-label="Subscription management">
+            <p className="font-medium">{subscription.plan === 'pro' ? 'Pro' : 'Teams'} ? {subscription.status.replaceAll('_', ' ')}</p>
+            {subscription.open && <p className="mt-2">{subscription.cancelAtPeriodEnd ? 'Renewal stops on ' + formatDate(subscription.currentEnd) : 'Next monthly charge: ' + formatDate(subscription.nextChargeAt)}.</p>}
+            {subscription.open && !subscription.cancelAtPeriodEnd && !['creating', 'setup_unknown'].includes(subscription.status) && <Button className="mt-3" variant="outline" disabled={Boolean(busy)} onClick={() => setConfirmCancel(true)}>{subscription.canResumeCheckout ? 'Discard pending checkout' : 'Cancel renewal'}</Button>}
+            {confirmCancel && <div className="mt-3 space-y-3">
+              <p>Stop future monthly charges? You keep your paid credits. An unpaid checkout will be cancelled immediately.</p>
+              <div className="flex gap-3"><Button disabled={Boolean(busy)} onClick={cancel}>{busy === 'cancel' ? 'Cancelling?' : 'Confirm cancellation'}</Button><Button variant="outline" disabled={Boolean(busy)} onClick={() => setConfirmCancel(false)}>Keep subscription</Button></div>
+            </div>}
+            {subscription.canResumeCheckout && <p className="mt-3 text-xs text-zinc-400">Finish or discard this checkout before choosing another plan.</p>}
+            {['creating', 'setup_unknown'].includes(subscription.status) && <p className="mt-3 text-xs text-amber-300">Subscription setup needs confirmation. Refresh billing; if this persists, contact support before starting another subscription.</p>}
+          </section>}
+          {billing?.payments.length > 0 && <section className="mt-10 rounded-2xl border border-white/10 p-5" aria-label="Payment history">
+            <h2 className="text-lg font-medium">Recent payments</h2>
+            <div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm">
+              <thead className="text-zinc-400"><tr><th className="p-2">Date</th><th className="p-2">Plan</th><th className="p-2">Amount</th><th className="p-2">Status</th><th className="p-2">Receipt</th></tr></thead>
+              <tbody>{billing.payments.map(payment => <tr key={payment.id} className="border-t border-white/10"><td className="p-2">{formatDate(payment.paidAt)}</td><td className="p-2">{payment.plan === 'pro' ? 'Pro' : 'Teams'}</td><td className="p-2">{money(payment.amount)}</td><td className="p-2">{payment.status}</td><td className="p-2">{/^https:\/\//.test(payment.receiptUrl || '') && <a className="text-violet-300 underline" href={payment.receiptUrl} target="_blank" rel="noopener noreferrer">View receipt</a>}</td></tr>)}</tbody>
+            </table></div>
+          </section>}
         </main>
       </div>
     </div>

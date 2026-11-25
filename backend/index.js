@@ -12,11 +12,16 @@ import {closeCheckpointer} from './utils/checkpointer.js';
 import mongoose from 'mongoose';
 import PendingAction from './models/pendingAction.model.js';
 import integrationRouter from './routes/integration.router.js';
+import billingRouter, { billingWebhook } from './routes/billing.routes.js';
+import Subscription from './models/subscription.model.js';
+import Payment from './models/payment.model.js';
 
 const app = express();
 
 const port = process.env.PORT || 8000;
 
+// This route must precede JSON parsing: Razorpay signs the exact request bytes.
+app.post('/api/billing/webhook', express.raw({ type: 'application/json', limit: '1mb' }), billingWebhook);
 app.use(express.json());
 app.use(
   cors({
@@ -32,12 +37,14 @@ app.use(cookieParser());
 app.use('/api/auth', authRouter);
 app.use('/api/agent', agentRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/billing', billingRouter);
 app.use('/api/integrations', integrationRouter);
 // Alias so both /api/integrations and /api/integration routes (e.g. OAuth callbacks) work
 app.use('/api/integration', integrationRouter);
 
 await connectDb();
 await PendingAction.init();
+await Promise.all([Subscription.init(), Payment.init()]);
 getMcpTools().catch(error => console.error('Web search startup unavailable:', error.message));
 const server = app.listen(port, () => console.log('Server started at', port));
 let closing = false;
